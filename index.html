@@ -435,11 +435,14 @@
                     products = productsData.map(product => ({
                         id: product.id,
                         name: product.name,
+                        description: product.description || '',
                         price: Number(product.price || 0),
-                        oldPrice: Number(product.old_price ?? 0),
-                        hasDiscount: Boolean(product.has_discount),
+                        oldPrice: product.old_price !== null && product.old_price !== undefined ? Number(product.old_price || 0) : 0,
+                        hasDiscount: product.has_discount !== null && product.has_discount !== undefined ? Boolean(product.has_discount) : false,
                         category: product.category || 'all',
                         unit: product.unit || 'قطعة',
+                        stock: Number(product.stock ?? 0),
+                        available: product.available !== false,
                         image: product.image_url || product.image || '',
                         qty: 0
                     }));

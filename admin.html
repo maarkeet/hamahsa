@@ -584,6 +584,160 @@
         }
     }
 
+    const PRODUCT_SCHEMA = {
+        supportsDescription: true,
+        supportsStock: true,
+        supportsAvailable: true,
+        supportsImageUrl: true,
+        supportsDiscountColumns: false
+    };
+
+    async function detectProductSchema() {
+        const checks = [
+            { key: 'description', query: 'description' },
+            { key: 'stock', query: 'stock' },
+            { key: 'available', query: 'available' },
+            { key: 'image_url', query: 'image_url' },
+            { key: 'old_price', query: 'old_price' },
+            { key: 'has_discount', query: 'has_discount' }
+        ];
+
+        for (const check of checks) {
+            try {
+                const { error } = await marketSupabase
+                    .from('products')
+                    .select(check.query)
+                    .limit(1);
+
+                if (check.key === 'has_discount' || check.key === 'old_price') {
+                    PRODUCT_SCHEMA.supportsDiscountColumns = !error;
+                }
+
+                if (!error) {
+                    if (check.key === 'description') PRODUCT_SCHEMA.supportsDescription = true;
+                    if (check.key === 'stock') PRODUCT_SCHEMA.supportsStock = true;
+                    if (check.key === 'available') PRODUCT_SCHEMA.supportsAvailable = true;
+                    if (check.key === 'image_url') PRODUCT_SCHEMA.supportsImageUrl = true;
+                }
+            } catch (error) {
+                if (check.key === 'has_discount' || check.key === 'old_price') {
+                    PRODUCT_SCHEMA.supportsDiscountColumns = false;
+                }
+                if (check.key === 'description') PRODUCT_SCHEMA.supportsDescription = false;
+                if (check.key === 'stock') PRODUCT_SCHEMA.supportsStock = false;
+                if (check.key === 'available') PRODUCT_SCHEMA.supportsAvailable = false;
+                if (check.key === 'image_url') PRODUCT_SCHEMA.supportsImageUrl = false;
+            }
+        }
+    }
+
+    function buildProductPayload({
+        name,
+        price,
+        category,
+        unit,
+        image,
+        description = '',
+        stock = 0,
+        available = true,
+        hasDiscount,
+        oldPrice
+    }) {
+        const payload = {
+            name,
+            price,
+            category,
+            unit,
+            image_url: image
+        };
+
+        if (PRODUCT_SCHEMA.supportsDescription) {
+            payload.description = description;
+        }
+
+        if (PRODUCT_SCHEMA.supportsStock) {
+            payload.stock = Number(stock || 0);
+        }
+
+        if (PRODUCT_SCHEMA.supportsAvailable) {
+            payload.available = Boolean(available !== false);
+        }
+
+        if (PRODUCT_SCHEMA.supportsDiscountColumns && hasDiscount && Number.isFinite(oldPrice) && oldPrice > price) {
+            payload.old_price = oldPrice;
+            payload.has_discount = true;
+        }
+
+        return payload;
+    }
+
+    async function saveProductRecord({
+        mode,
+        id,
+        payload
+    }) {
+        const query = marketSupabase
+            .from('products');
+
+        const cleanPayload = {
+            ...payload
+        };
+
+        delete cleanPayload.old_price;
+        delete cleanPayload.has_discount;
+
+        const operation = mode === 'update'
+            ? query.update(cleanPayload).eq('id', id)
+            : query.insert(cleanPayload);
+
+        const {
+            error
+        } = await operation;
+
+        if (error) {
+            const message = String(error.message || '');
+            const isLegacyColumnError = message.includes('has_discount') || message.includes('old_price');
+
+            if (isLegacyColumnError) {
+                const legacySafePayload = {
+                    name: cleanPayload.name,
+                    price: cleanPayload.price,
+                    category: cleanPayload.category,
+                    unit: cleanPayload.unit,
+                    image_url: cleanPayload.image_url,
+                    ...(cleanPayload.description !== undefined ? { description: cleanPayload.description } : {}),
+                    ...(cleanPayload.stock !== undefined ? { stock: cleanPayload.stock } : {}),
+                    ...(cleanPayload.available !== undefined ? { available: cleanPayload.available } : {})
+                };
+
+                if (mode === 'update') {
+                    const fallbackResult = await marketSupabase
+                        .from('products')
+                        .update(legacySafePayload)
+                        .eq('id', id);
+
+                    if (fallbackResult.error) {
+                        throw fallbackResult.error;
+                    }
+
+                    return;
+                }
+
+                const fallbackResult = await marketSupabase
+                    .from('products')
+                    .insert(legacySafePayload);
+
+                if (fallbackResult.error) {
+                    throw fallbackResult.error;
+                }
+
+                return;
+            }
+
+            throw error;
+        }
+    }
+
     // =========================================================
     // INITIALIZATION
     // =========================================================
@@ -807,13 +961,15 @@
 
     async function loadDataFromSupabase() {
 
+        await detectProductSchema();
+
         // PRODUCTS
         const {
             data: productsData,
             error: productsError
         } = await marketSupabase
             .from('products')
-            .select('*')
+            .select('id,name,price,description,unit,stock,available,category,image_url,created_at,updated_at')
             .order('created_at', {
                 ascending: false
             });
@@ -826,13 +982,16 @@
             id: p.id,
             name: p.name || '',
             price: Number(p.price || 0),
-            oldPrice: p.old_price !== null
+            description: p.description || '',
+            unit: p.unit || '',
+            stock: Number(p.stock ?? 0),
+            available: p.available !== false,
+            category: p.category || 'all',
+            image: p.image_url || p.image || '',
+            oldPrice: PRODUCT_SCHEMA.supportsDiscountColumns && p.old_price !== null && p.old_price !== undefined
                 ? Number(p.old_price || 0)
                 : 0,
-            hasDiscount: Boolean(p.has_discount),
-            category: p.category || 'all',
-            unit: p.unit || '',
-            image: p.image_url || '',
+            hasDiscount: PRODUCT_SCHEMA.supportsDiscountColumns && Boolean(p.has_discount ?? false),
             created_at: p.created_at,
             updated_at: p.updated_at
         }));
@@ -1858,32 +2017,30 @@
 
         try {
 
+            const payload = buildProductPayload({
+                name,
+                price,
+                category,
+                unit,
+                image,
+                description: document.getElementById('newProdDescription')?.value?.trim() || '',
+                stock: Number(document.getElementById('newProdStock')?.value || 0),
+                available: document.getElementById('newProdAvailable') ? document.getElementById('newProdAvailable').checked : true,
+                hasDiscount,
+                oldPrice
+            });
+
             // =================================================
             // EDIT
             // =================================================
 
             if (editingProductId) {
 
-                const {
-                    error
-                } = await marketSupabase
-                    .from('products')
-                    .update({
-                        name,
-                        price,
-                        old_price: hasDiscount
-                            ? oldPrice
-                            : null,
-                        has_discount: hasDiscount,
-                        category,
-                        unit,
-                        image_url: image
-                    })
-                    .eq('id', editingProductId);
-
-                if (error) {
-                    throw error;
-                }
+                await saveProductRecord({
+                    mode: 'update',
+                    id: editingProductId,
+                    payload
+                });
 
                 showAlert(
                     'تم التعديل',
@@ -1900,25 +2057,10 @@
 
             else {
 
-                const {
-                    error
-                } = await marketSupabase
-                    .from('products')
-                    .insert({
-                        name,
-                        price,
-                        old_price: hasDiscount
-                            ? oldPrice
-                            : null,
-                        has_discount: hasDiscount,
-                        category,
-                        unit,
-                        image_url: image
-                    });
-
-                if (error) {
-                    throw error;
-                }
+                await saveProductRecord({
+                    mode: 'insert',
+                    payload
+                });
 
                 showAlert(
                     'تمت الإضافة',
@@ -2153,26 +2295,44 @@
             }
 
             // المنتجات الافتراضية
+            const defaultProductPayload = DEFAULT_PRODUCTS.map(p => buildProductPayload({
+                name: p.name,
+                price: p.price,
+                category: p.category,
+                unit: p.unit,
+                image: p.image,
+                description: '',
+                stock: 0,
+                available: true,
+                hasDiscount: Boolean(p.hasDiscount),
+                oldPrice: Number(p.oldPrice || 0)
+            }));
+
             const {
                 error: productsInsertError
             } = await marketSupabase
                 .from('products')
-                .insert(
-                    DEFAULT_PRODUCTS.map(p => ({
-                        name: p.name,
-                        price: p.price,
-                        old_price: p.hasDiscount
-                            ? p.oldPrice
-                            : null,
-                        has_discount: p.hasDiscount,
-                        category: p.category,
-                        unit: p.unit,
-                        image_url: p.image
-                    }))
-                );
+                .insert(defaultProductPayload);
 
             if (productsInsertError) {
-                throw productsInsertError;
+                const fallbackPayload = DEFAULT_PRODUCTS.map(p => ({
+                    name: p.name,
+                    price: p.price,
+                    category: p.category,
+                    unit: p.unit,
+                    image_url: p.image,
+                    ...(PRODUCT_SCHEMA.supportsDescription ? { description: '' } : {}),
+                    ...(PRODUCT_SCHEMA.supportsStock ? { stock: 0 } : {}),
+                    ...(PRODUCT_SCHEMA.supportsAvailable ? { available: true } : {})
+                }));
+
+                const fallbackResult = await marketSupabase
+                    .from('products')
+                    .insert(fallbackPayload);
+
+                if (fallbackResult.error) {
+                    throw fallbackResult.error;
+                }
             }
 
             await refreshAdminData();
