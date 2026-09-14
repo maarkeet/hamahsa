@@ -488,7 +488,99 @@
 
         let products = [];
         let categories = [];
-        let storeSettings = [];
+        let storeSettings = {};
+    async function loadDataFromSupabase() { try {
+    // =========================
+    // تحميل المنتجات
+    // =========================
+
+    const { data: productsData, error: productsError } =
+        await marketSupabase
+            .from('products')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+    if (productsError) {
+        throw productsError;
+    }
+
+    products = productsData.map(p => ({
+        id: p.id,
+        name: p.name,
+        price: Number(p.price),
+        oldPrice: p.old_price ? Number(p.old_price) : 0,
+        hasDiscount: p.has_discount || false,
+        category: p.category,
+        unit: p.unit || '',
+        image: p.image_url || ''
+    }));
+
+
+    // =========================
+    // تحميل الأقسام
+    // =========================
+
+    const { data: categoriesData, error: categoriesError } =
+        await marketSupabase
+            .from('categories')
+            .select('*')
+            .order('display_order', { ascending: true });
+
+    if (categoriesError) {
+        throw categoriesError;
+    }
+
+    categories = categoriesData.map(c => ({
+        id: c.id,
+        name: c.name,
+        icon: c.icon || 'fa-tag'
+    }));
+
+
+    // =========================
+    // تحميل إعدادات المتجر
+    // =========================
+
+    const { data: settingsData, error: settingsError } =
+        await marketSupabase
+            .from('store_settings')
+            .select('*')
+            .eq('id', 1)
+            .maybeSingle();
+
+    if (settingsError) {
+        throw settingsError;
+    }
+
+    if (settingsData) {
+        storeSettings = {
+            name: settingsData.name,
+            whatsapp: settingsData.whatsapp,
+            deliveryFee: Number(settingsData.delivery_fee || 0)
+        };
+    }
+
+
+    // =========================
+    // تحديث واجهة الإدارة
+    // =========================
+
+    renderProducts();
+    renderCategories();
+    updateStats();
+
+    console.log('تم تحميل البيانات من Supabase بنجاح');
+
+} catch (error) {
+
+    console.error('Supabase Error:', error);
+
+    alert(
+        'حصل خطأ أثناء تحميل البيانات من قاعدة البيانات\n\n' +
+        error.message
+    );
+}
+}
         let isLoggedIn = sessionStorage.getItem('adminLoggedIn') === 'true';
 
         // Initialize
@@ -983,6 +1075,7 @@
         function closeAlertModal() {
             document.getElementById('alertModal').classList.add('hidden');
         }
+    loadDataFromSupabase();
     </script>
 </body>
 </html>
