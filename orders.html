@@ -1,0 +1,977 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>إدارة الطلبات</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Cairo', 'Tajawal', 'sans-serif']
+                    },
+                    colors: {
+                        brand: {
+                            50: '#fffef0',
+                            100: '#fffad7',
+                            200: '#fef08a',
+                            300: '#facc15',
+                            400: '#fbbf24',
+                            500: '#f59e0b',
+                            600: '#d97706',
+                            700: '#b45309',
+                            800: '#92400e',
+                            900: '#78350f'
+                        }
+                    }
+                }
+            }
+        };
+    </script>
+    <style>
+        body {
+            font-family: 'Cairo', 'Tajawal', sans-serif;
+            background: #f8fafc;
+            color: #0f172a;
+        }
+
+        .table-scroll {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 9999px;
+            font-size: 10px;
+            font-weight: 800;
+            padding: 0.4rem 0.75rem;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen">
+    <header class="bg-slate-900 text-white py-4 px-6 shadow-lg">
+        <div class="max-w-7xl mx-auto flex items-center justify-between gap-3 flex-wrap">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-brand-500 rounded-xl flex items-center justify-center">
+                    <i class="fa-solid fa-boxes-stacked text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-black">إدارة الطلبات</h1>
+                    <p class="text-xs text-slate-400">لوحة متابعة الطلبات المحلية</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3 flex-wrap">
+                <nav class="flex items-center gap-2 bg-slate-800/80 rounded-xl p-1 border border-slate-700">
+                    <a href="admin.html" class="px-3 py-2 rounded-lg text-xs font-bold text-slate-200 hover:bg-slate-700 transition-all">
+                        <i class="fa-solid fa-house ml-1"></i>
+                        الرئيسية
+                    </a>
+                    <a href="orders.html" class="px-3 py-2 rounded-lg text-xs font-bold bg-brand-600 text-white">
+                        <i class="fa-solid fa-boxes-stacked ml-1"></i>
+                        إدارة الطلبات
+                    </a>
+                </nav>
+                <a href="index.html" target="_blank" class="bg-brand-600 hover:bg-brand-700 px-4 py-2 rounded-xl text-xs font-bold transition-all">
+                    <i class="fa-solid fa-store ml-1"></i>
+                    عرض المتجر
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <section class="mb-8">
+            <div class="mb-4 flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                    <h2 class="text-2xl font-black text-slate-900">إدارة الطلبات</h2>
+                    <p class="text-sm text-slate-500">متابعة الطلبات والفلترة وتحديث الحالة مباشرة من اللوحة</p>
+                </div>
+                <button id="refreshOrdersBtn" type="button" class="inline-flex items-center gap-2 bg-brand-600 hover:bg-brand-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-sm transition-all">
+                    <i class="fa-solid fa-rotate"></i>
+                    تحديث الطلبات
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-8 gap-4">
+                <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-[11px] font-black text-slate-500">إجمالي الطلبات</p>
+                            <h3 id="statsTotal" class="text-2xl font-black text-slate-900 mt-1">0</h3>
+                        </div>
+                        <div class="w-12 h-12 bg-brand-100 text-brand-700 rounded-xl flex items-center justify-center">
+                            <i class="fa-solid fa-bag-shopping text-lg"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-[11px] font-black text-slate-500">طلبات جديدة</p>
+                            <h3 id="statsNew" class="text-2xl font-black text-slate-900 mt-1">0</h3>
+                        </div>
+                        <div class="w-12 h-12 bg-yellow-100 text-yellow-700 rounded-xl flex items-center justify-center">
+                            <i class="fa-solid fa-star text-lg"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-[11px] font-black text-slate-500">قيد التنفيذ</p>
+                            <h3 id="statsInProgress" class="text-2xl font-black text-slate-900 mt-1">0</h3>
+                        </div>
+                        <div class="w-12 h-12 bg-blue-100 text-blue-700 rounded-xl flex items-center justify-center">
+                            <i class="fa-solid fa-clock text-lg"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-[11px] font-black text-slate-500">جاهزة للتوصيل</p>
+                            <h3 id="statsReady" class="text-2xl font-black text-slate-900 mt-1">0</h3>
+                        </div>
+                        <div class="w-12 h-12 bg-teal-100 text-teal-700 rounded-xl flex items-center justify-center">
+                            <i class="fa-solid fa-truck-fast text-lg"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-[11px] font-black text-slate-500">خرجت للتوصيل</p>
+                            <h3 id="statsOutForDelivery" class="text-2xl font-black text-slate-900 mt-1">0</h3>
+                        </div>
+                        <div class="w-12 h-12 bg-violet-100 text-violet-700 rounded-xl flex items-center justify-center">
+                            <i class="fa-solid fa-motorcycle text-lg"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-[11px] font-black text-slate-500">تم التسليم</p>
+                            <h3 id="statsDelivered" class="text-2xl font-black text-slate-900 mt-1">0</h3>
+                        </div>
+                        <div class="w-12 h-12 bg-emerald-100 text-emerald-700 rounded-xl flex items-center justify-center">
+                            <i class="fa-solid fa-circle-check text-lg"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-[11px] font-black text-slate-500">الطلبات الملغاة</p>
+                            <h3 id="statsCancelled" class="text-2xl font-black text-slate-900 mt-1">0</h3>
+                        </div>
+                        <div class="w-12 h-12 bg-red-100 text-red-700 rounded-xl flex items-center justify-center">
+                            <i class="fa-solid fa-ban text-lg"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-[11px] font-black text-slate-500">إجمالي القيمة</p>
+                            <h3 id="statsRevenue" class="text-lg font-black text-slate-900 mt-1">0 ج.م</h3>
+                        </div>
+                        <div class="w-12 h-12 bg-slate-100 text-slate-700 rounded-xl flex items-center justify-center">
+                            <i class="fa-solid fa-wallet text-lg"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 mb-8">
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 items-end">
+                <div class="xl:col-span-2">
+                    <label class="block text-[11px] font-black text-slate-700 mb-2">بحث سريع</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-magnifying-glass absolute right-3 top-3.5 text-slate-400"></i>
+                        <input id="searchInput" type="text" placeholder="رقم الطلب، اسم العميل، الهاتف، العنوان" class="w-full pr-10 pl-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-[11px] font-black text-slate-700 mb-2">حالة الطلب</label>
+                    <select id="statusFilter" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500">
+                        <option value="all">الكل</option>
+                        <option value="new">جديد</option>
+                        <option value="confirmed">مؤكد</option>
+                        <option value="preparing">قيد التجهيز</option>
+                        <option value="ready">جاهز</option>
+                        <option value="out_for_delivery">خارج للتوصيل</option>
+                        <option value="delivered">تم التسليم</option>
+                        <option value="cancelled">ملغي</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-[11px] font-black text-slate-700 mb-2">تصفية التاريخ</label>
+                    <select id="dateFilter" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500">
+                        <option value="all">كل الطلبات</option>
+                        <option value="today">اليوم</option>
+                        <option value="yesterday">أمس</option>
+                        <option value="last7">آخر 7 أيام</option>
+                        <option value="last30">آخر 30 يوم</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-[11px] font-black text-slate-700 mb-2">الترتيب</label>
+                    <select id="sortSelect" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500">
+                        <option value="newest">الأحدث أولاً</option>
+                        <option value="oldest">الأقدم أولاً</option>
+                        <option value="highest">الأعلى قيمة</option>
+                        <option value="lowest">الأقل قيمة</option>
+                    </select>
+                </div>
+            </div>
+        </section>
+
+        <section id="ordersSection" class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden"></section>
+    </main>
+
+    <div id="orderDetailModal" class="fixed inset-0 z-50 hidden bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
+            <div class="sticky top-0 z-10 bg-slate-900 text-white px-5 py-4 flex items-center justify-between">
+                <div>
+                    <h3 class="text-xl font-black">تفاصيل الطلب</h3>
+                    <p id="detailOrderCode" class="text-xs text-slate-300 mt-1"></p>
+                </div>
+                <button type="button" id="closeDetailModal" class="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div id="orderDetailBody" class="p-5"></div>
+        </div>
+    </div>
+
+    <div id="toastContainer" class="fixed bottom-4 left-4 z-[70] flex flex-col gap-2"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="./supabase.local.js"></script>
+    <script src="./supabase.js"></script>
+    <script>
+        const ORDER_STATUS_LABELS = {
+            new: 'جديد',
+            confirmed: 'مؤكد',
+            preparing: 'قيد التجهيز',
+            ready: 'جاهز',
+            out_for_delivery: 'خارج للتوصيل',
+            delivered: 'تم التسليم',
+            cancelled: 'ملغي'
+        };
+
+        const ORDER_STATUS_CLASSES = {
+            new: 'bg-yellow-100 text-yellow-700',
+            confirmed: 'bg-blue-100 text-blue-700',
+            preparing: 'bg-indigo-100 text-indigo-700',
+            ready: 'bg-teal-100 text-teal-700',
+            out_for_delivery: 'bg-violet-100 text-violet-700',
+            delivered: 'bg-emerald-100 text-emerald-700',
+            cancelled: 'bg-red-100 text-red-700'
+        };
+
+        const ORDER_STATUS_RULES = {
+            new: ['confirmed', 'cancelled'],
+            confirmed: ['preparing', 'cancelled'],
+            preparing: ['ready'],
+            ready: ['out_for_delivery'],
+            out_for_delivery: ['delivered'],
+            delivered: [],
+            cancelled: []
+        };
+
+        function getAllowedNextStatuses(currentStatus) {
+            return ORDER_STATUS_RULES[currentStatus] || [];
+        }
+
+        function getAllowedStatusOptions(currentStatus) {
+            const allowed = getAllowedNextStatuses(currentStatus);
+            const options = new Set([currentStatus, ...allowed]);
+            return [...options].filter(Boolean).map((status) => ({ value: status, label: ORDER_STATUS_LABELS[status] || 'غير محدد' }));
+        }
+
+        function showInvalidStatusToast() {
+            showToast('لا يمكن الرجوع بحالة الطلب إلى مرحلة سابقة', 'error');
+        }
+
+        function formatCurrency(value) {
+            return `${Number(value || 0).toLocaleString('ar-EG')} ج.م`;
+        }
+
+        function formatDate(value, includeTime = true) {
+            if (!value) return '-';
+            try {
+                const date = new Date(value);
+                const options = includeTime
+                    ? { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }
+                    : { year: 'numeric', month: 'numeric', day: 'numeric' };
+                return date.toLocaleString('ar-EG', options);
+            } catch (error) {
+                return '-';
+            }
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/\"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function getStatusLabel(status) {
+            return ORDER_STATUS_LABELS[status] || 'غير محدد';
+        }
+
+        function getStatusClasses(status) {
+            return ORDER_STATUS_CLASSES[status] || 'bg-slate-100 text-slate-700';
+        }
+
+        let ordersCache = [];
+
+        function getOrders() {
+            return ordersCache;
+        }
+
+        function getDateFilterValue() {
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+            const last7 = new Date(today);
+            last7.setDate(last7.getDate() - 6);
+            const last30 = new Date(today);
+            last30.setDate(last30.getDate() - 29);
+            return { today, yesterday, last7, last30 };
+        }
+
+        function applyDateFilter(orders, dateValue) {
+            if (dateValue === 'all') return orders;
+            const { today, yesterday, last7, last30 } = getDateFilterValue();
+            return orders.filter((order) => {
+                const created = new Date(order.created_at || order.updated_at || Date.now());
+                if (dateValue === 'today') return created >= today;
+                if (dateValue === 'yesterday') return created >= yesterday && created < today;
+                if (dateValue === 'last7') return created >= last7;
+                if (dateValue === 'last30') return created >= last30;
+                return true;
+            });
+        }
+
+        function getFilteredOrders() {
+            const searchInput = document.getElementById('searchInput');
+            const statusFilter = document.getElementById('statusFilter');
+            const dateFilter = document.getElementById('dateFilter');
+            const sortFilter = document.getElementById('sortSelect');
+
+            let orders = [...getOrders()].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+            const searchValue = (searchInput.value || '').trim().toLowerCase();
+            const statusValue = statusFilter.value;
+            const dateValue = dateFilter.value;
+            const sortValue = sortFilter.value;
+
+            if (searchValue) {
+                orders = orders.filter((order) => {
+                    const haystack = [order.order_code, order.customer_name, order.phone, order.address, order.notes].join(' ').toLowerCase();
+                    return haystack.includes(searchValue);
+                });
+            }
+
+            if (statusValue !== 'all') {
+                orders = orders.filter((order) => String(order.status) === String(statusValue));
+            }
+
+            orders = applyDateFilter(orders, dateValue);
+
+            switch (sortValue) {
+                case 'oldest':
+                    orders.sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
+                    break;
+                case 'highest':
+                    orders.sort((a, b) => Number(b.total || 0) - Number(a.total || 0));
+                    break;
+                case 'lowest':
+                    orders.sort((a, b) => Number(a.total || 0) - Number(b.total || 0));
+                    break;
+                default:
+                    orders.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+                    break;
+            }
+
+            return orders;
+        }
+
+        function renderStats() {
+            const orders = getOrders();
+            const total = orders.length;
+            const newOrders = orders.filter((order) => order.status === 'new').length;
+            const inProgress = orders.filter((order) => ['confirmed', 'preparing', 'ready', 'out_for_delivery'].includes(order.status)).length;
+            const ready = orders.filter((order) => order.status === 'ready').length;
+            const outForDelivery = orders.filter((order) => order.status === 'out_for_delivery').length;
+            const delivered = orders.filter((order) => order.status === 'delivered').length;
+            const cancelled = orders.filter((order) => order.status === 'cancelled').length;
+            const revenue = orders.reduce((sum, order) => sum + Number(order.total || 0), 0);
+
+            document.getElementById('statsTotal').textContent = String(total);
+            document.getElementById('statsNew').textContent = String(newOrders);
+            document.getElementById('statsInProgress').textContent = String(inProgress);
+            document.getElementById('statsReady').textContent = String(ready);
+            document.getElementById('statsOutForDelivery').textContent = String(outForDelivery);
+            document.getElementById('statsDelivered').textContent = String(delivered);
+            document.getElementById('statsCancelled').textContent = String(cancelled);
+            document.getElementById('statsRevenue').textContent = formatCurrency(revenue);
+        }
+
+        function showEmptyState(title, message) {
+            const section = document.getElementById('ordersSection');
+            section.innerHTML = '';
+
+            const empty = document.createElement('div');
+            empty.className = 'p-10 text-center';
+
+            const iconWrap = document.createElement('div');
+            iconWrap.className = 'mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-2xl text-slate-400';
+            const icon = document.createElement('i');
+            icon.className = 'fa-solid fa-box-open';
+            iconWrap.appendChild(icon);
+
+            const titleNode = document.createElement('h3');
+            titleNode.className = 'text-xl font-black text-slate-800';
+            titleNode.textContent = title;
+
+            const messageNode = document.createElement('p');
+            messageNode.className = 'mt-2 text-sm text-slate-500';
+            messageNode.textContent = message;
+
+            empty.appendChild(iconWrap);
+            empty.appendChild(titleNode);
+            empty.appendChild(messageNode);
+            section.appendChild(empty);
+        }
+
+        function renderOrdersTable() {
+            const orders = getFilteredOrders();
+            const section = document.getElementById('ordersSection');
+            section.innerHTML = '';
+
+            if (!orders.length) {
+                showEmptyState('لا توجد طلبات حاليًا', 'لا توجد طلبات مطابقة للبحث أو الفلاتر الحالية');
+                return;
+            }
+
+            const wrapper = document.createElement('div');
+            wrapper.className = 'table-scroll';
+
+            const table = document.createElement('table');
+            table.className = 'min-w-full divide-y divide-slate-200';
+
+            const thead = document.createElement('thead');
+            thead.className = 'bg-slate-50';
+            const trHead = document.createElement('tr');
+            ['رقم الطلب', 'العميل', 'الهاتف', 'عدد المنتجات', 'الإجمالي', 'طريقة الدفع', 'الحالة', 'تاريخ الطلب', 'الإجراءات'].forEach((label) => {
+                const th = document.createElement('th');
+                th.className = 'px-4 py-3 text-right text-[11px] font-black text-slate-700';
+                th.textContent = label;
+                trHead.appendChild(th);
+            });
+            thead.appendChild(trHead);
+            table.appendChild(thead);
+
+            const tbody = document.createElement('tbody');
+            tbody.className = 'divide-y divide-slate-200 bg-white';
+
+            orders.forEach((order) => {
+                const row = document.createElement('tr');
+                row.className = 'align-top hover:bg-slate-50 transition-colors';
+
+                const createCell = (className, callback) => {
+                    const cell = document.createElement('td');
+                    cell.className = className;
+                    callback(cell);
+                    return cell;
+                };
+
+                row.appendChild(createCell('px-4 py-4', (cell) => {
+                    const code = document.createElement('div');
+                    code.className = 'font-black text-slate-900 text-sm';
+                    code.textContent = order.order_code || order.id;
+                    cell.appendChild(code);
+                }));
+
+                row.appendChild(createCell('px-4 py-4', (cell) => {
+                    const name = document.createElement('div');
+                    name.className = 'font-bold text-slate-800 text-sm';
+                    name.textContent = order.customer_name || '-';
+                    cell.appendChild(name);
+
+                    const address = document.createElement('div');
+                    address.className = 'mt-1 text-[11px] text-slate-500';
+                    address.textContent = (order.address || '').substring(0, 35) || 'لا يوجد عنوان';
+                    cell.appendChild(address);
+                }));
+
+                row.appendChild(createCell('px-4 py-4', (cell) => {
+                    const phone = document.createElement('div');
+                    phone.className = 'text-sm font-medium text-slate-700';
+                    phone.textContent = order.phone || '-';
+                    cell.appendChild(phone);
+                }));
+
+                row.appendChild(createCell('px-4 py-4', (cell) => {
+                    const count = document.createElement('div');
+                    count.className = 'text-sm font-bold text-slate-800';
+                    const totalItems = (order.items || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+                    count.textContent = String(totalItems);
+                    cell.appendChild(count);
+                }));
+
+                row.appendChild(createCell('px-4 py-4', (cell) => {
+                    const total = document.createElement('div');
+                    total.className = 'font-black text-brand-700 text-sm';
+                    total.textContent = formatCurrency(order.total || 0);
+                    cell.appendChild(total);
+                }));
+
+                row.appendChild(createCell('px-4 py-4', (cell) => {
+                    const method = document.createElement('div');
+                    method.className = 'text-sm font-medium text-slate-700';
+                    method.textContent = order.payment_method || 'cash';
+                    cell.appendChild(method);
+                }));
+
+                row.appendChild(createCell('px-4 py-4', (cell) => {
+                    const badge = document.createElement('span');
+                    badge.className = `badge ${getStatusClasses(order.status)}`;
+                    badge.textContent = getStatusLabel(order.status);
+                    cell.appendChild(badge);
+                }));
+
+                row.appendChild(createCell('px-4 py-4', (cell) => {
+                    const date = document.createElement('div');
+                    date.className = 'text-sm text-slate-600';
+                    date.textContent = formatDate(order.created_at, true);
+                    cell.appendChild(date);
+                }));
+
+                row.appendChild(createCell('px-4 py-4', (cell) => {
+                    const actions = document.createElement('div');
+                    actions.className = 'flex flex-wrap items-center gap-2';
+
+                    const viewBtn = document.createElement('button');
+                    viewBtn.type = 'button';
+                    viewBtn.className = 'inline-flex items-center justify-center rounded-xl bg-slate-100 hover:bg-slate-200 px-2.5 py-2 text-[10px] font-bold text-slate-700';
+                    viewBtn.textContent = 'عرض';
+                    viewBtn.addEventListener('click', () => openOrderDetailModal(order));
+                    actions.appendChild(viewBtn);
+
+                    const printA4Btn = document.createElement('button');
+                    printA4Btn.type = 'button';
+                    printA4Btn.className = 'inline-flex items-center justify-center rounded-xl bg-brand-100 hover:bg-brand-200 px-2.5 py-2 text-[10px] font-bold text-brand-700';
+                    printA4Btn.textContent = 'A4';
+                    printA4Btn.title = 'طباعة A4';
+                    printA4Btn.addEventListener('click', () => printOrder(order, 'a4'));
+                    actions.appendChild(printA4Btn);
+
+                    const thermalBtn = document.createElement('button');
+                    thermalBtn.type = 'button';
+                    thermalBtn.className = 'inline-flex items-center justify-center rounded-xl bg-slate-100 hover:bg-slate-200 px-2.5 py-2 text-[10px] font-bold text-slate-700';
+                    thermalBtn.textContent = '80mm';
+                    thermalBtn.title = 'طباعة حرارية 80mm';
+                    thermalBtn.addEventListener('click', () => printOrder(order, 'thermal'));
+                    actions.appendChild(thermalBtn);
+
+                    const statusSelect = document.createElement('select');
+                    statusSelect.className = 'rounded-xl border border-slate-200 bg-white px-2 py-2 text-[10px] font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-500';
+                    Object.entries(ORDER_STATUS_LABELS).forEach(([value, label]) => {
+                        const option = document.createElement('option');
+                        option.value = value;
+                        option.textContent = label;
+                        option.selected = value === order.status;
+                        statusSelect.appendChild(option);
+                    });
+                    const allowedStatuses = getAllowedStatusOptions(order.status);
+                    const currentValue = order.status;
+                    statusSelect.innerHTML = '';
+                    allowedStatuses.forEach(({ value, label }) => {
+                        const option = document.createElement('option');
+                        option.value = value;
+                        option.textContent = label;
+                        option.selected = value === currentValue;
+                        statusSelect.appendChild(option);
+                    });
+
+                    statusSelect.addEventListener('change', (event) => {
+                        const nextStatus = event.target.value;
+                        const allowed = getAllowedNextStatuses(order.status);
+                        if (!allowed.includes(nextStatus) && nextStatus !== order.status) {
+                            event.target.value = order.status;
+                            showInvalidStatusToast();
+                            return;
+                        }
+                        if (nextStatus === 'cancelled' && !window.confirm('هل تريد إلغاء هذا الطلب؟')) {
+                            event.target.value = order.status;
+                            return;
+                        }
+                        window.marketApi.updateOrderStatus(order.id, nextStatus).then(() => {
+                            showToast('تم تحديث حالة الطلب بنجاح', 'success');
+                            return refreshOrders({ silent: true });
+                        }).catch((error) => {
+                            event.target.value = order.status;
+                            showToast(error.message || 'تعذر تحديث الحالة', 'error');
+                        });
+                    });
+                    actions.appendChild(statusSelect);
+
+                    cell.appendChild(actions);
+                }));
+
+                tbody.appendChild(row);
+            });
+
+            table.appendChild(tbody);
+            wrapper.appendChild(table);
+            section.appendChild(wrapper);
+        }
+
+        function createInfoRow(label, value) {
+            const row = document.createElement('div');
+            row.className = 'flex items-start justify-between gap-3 py-2 border-b border-slate-200 last:border-0';
+
+            const key = document.createElement('span');
+            key.className = 'font-bold text-slate-800';
+            key.textContent = `${label}:`;
+
+            const valueNode = document.createElement('span');
+            valueNode.className = 'text-left text-slate-600';
+            valueNode.textContent = value || '-';
+
+            row.appendChild(key);
+            row.appendChild(valueNode);
+            return row;
+        }
+
+        function openOrderDetailModal(order) {
+            if (!order) return;
+            const modal = document.getElementById('orderDetailModal');
+            const body = document.getElementById('orderDetailBody');
+            const codeNode = document.getElementById('detailOrderCode');
+            codeNode.textContent = order.order_code || order.id;
+            body.innerHTML = '';
+
+            const mainGrid = document.createElement('div');
+            mainGrid.className = 'grid grid-cols-1 xl:grid-cols-2 gap-6';
+
+            const left = document.createElement('div');
+            left.className = 'space-y-5';
+
+            const clientBox = document.createElement('div');
+            clientBox.className = 'rounded-2xl bg-slate-50 border border-slate-200 p-4';
+            const clientTitle = document.createElement('div');
+            clientTitle.className = 'text-[11px] font-black text-slate-500 mb-3';
+            clientTitle.textContent = 'بيانات العميل';
+            clientBox.appendChild(clientTitle);
+            clientBox.appendChild(createInfoRow('الاسم', order.customer_name));
+            clientBox.appendChild(createInfoRow('الهاتف', order.phone));
+            clientBox.appendChild(createInfoRow('العنوان', order.address));
+            clientBox.appendChild(createInfoRow('الملاحظات', order.notes || 'لا توجد ملاحظات'));
+            left.appendChild(clientBox);
+
+            const orderBox = document.createElement('div');
+            orderBox.className = 'rounded-2xl bg-slate-50 border border-slate-200 p-4';
+            const orderTitle = document.createElement('div');
+            orderTitle.className = 'text-[11px] font-black text-slate-500 mb-3';
+            orderTitle.textContent = 'بيانات الطلب';
+            orderBox.appendChild(orderTitle);
+            orderBox.appendChild(createInfoRow('رقم الطلب', order.order_code || order.id));
+            orderBox.appendChild(createInfoRow('تاريخ الإنشاء', formatDate(order.created_at, true)));
+            orderBox.appendChild(createInfoRow('آخر تحديث', formatDate(order.updated_at, true)));
+            orderBox.appendChild(createInfoRow('طريقة الدفع', order.payment_method || 'cash'));
+
+            const statusWrap = document.createElement('div');
+            statusWrap.className = 'flex items-center justify-between gap-3 pt-2';
+            const statusLabel = document.createElement('span');
+            statusLabel.className = 'font-bold text-slate-800';
+            statusLabel.textContent = 'الحالة الحالية:';
+            const statusBadge = document.createElement('span');
+            statusBadge.className = `badge ${getStatusClasses(order.status)}`;
+            statusBadge.textContent = getStatusLabel(order.status);
+            statusWrap.appendChild(statusLabel);
+            statusWrap.appendChild(statusBadge);
+            orderBox.appendChild(statusWrap);
+
+            const changeWrap = document.createElement('div');
+            changeWrap.className = 'mt-4';
+            const changeLabel = document.createElement('label');
+            changeLabel.className = 'block text-[11px] font-black text-slate-500 mb-2';
+            changeLabel.textContent = 'تغيير الحالة';
+            const select = document.createElement('select');
+            select.className = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500';
+            const allowedOptions = getAllowedStatusOptions(order.status);
+            allowedOptions.forEach(({ value, label }) => {
+                const option = document.createElement('option');
+                option.value = value;
+                option.textContent = label;
+                option.selected = value === order.status;
+                select.appendChild(option);
+            });
+            select.addEventListener('change', (event) => {
+                const nextStatus = event.target.value;
+                const allowed = getAllowedNextStatuses(order.status);
+                if (!allowed.includes(nextStatus) && nextStatus !== order.status) {
+                    event.target.value = order.status;
+                    showInvalidStatusToast();
+                    return;
+                }
+                if (nextStatus === 'cancelled' && !window.confirm('هل أنت متأكد من إلغاء هذا الطلب؟')) {
+                    event.target.value = order.status;
+                    return;
+                }
+                window.marketApi.updateOrderStatus(order.id, nextStatus).then(() => {
+                    showToast('تم تحديث حالة الطلب بنجاح', 'success');
+                    return refreshOrders({ silent: true }).then(() => openOrderDetailModal(getOrders().find((entry) => entry.id === order.id)));
+                }).catch((error) => {
+                    event.target.value = order.status;
+                    showToast(error.message || 'تعذر تحديث الحالة', 'error');
+                });
+            });
+            changeWrap.appendChild(changeLabel);
+            changeWrap.appendChild(select);
+            orderBox.appendChild(changeWrap);
+            left.appendChild(orderBox);
+
+            const right = document.createElement('div');
+            right.className = 'space-y-5';
+
+            const productsBox = document.createElement('div');
+            productsBox.className = 'rounded-2xl bg-slate-50 border border-slate-200 p-4';
+            const productsTitle = document.createElement('div');
+            productsTitle.className = 'text-[11px] font-black text-slate-500 mb-3';
+            productsTitle.textContent = 'المنتجات';
+            productsBox.appendChild(productsTitle);
+
+            const productsList = document.createElement('div');
+            productsList.className = 'space-y-3';
+            const items = Array.isArray(order.items) ? order.items : [];
+
+            if (!items.length) {
+                const empty = document.createElement('div');
+                empty.className = 'text-sm text-slate-500';
+                empty.textContent = 'لا توجد منتجات';
+                productsList.appendChild(empty);
+            } else {
+                items.forEach((item) => {
+                    const productRow = document.createElement('div');
+                    productRow.className = 'flex items-center justify-between gap-3 border-b border-slate-200 pb-2 last:border-0 last:pb-0';
+
+                    const info = document.createElement('div');
+                    const name = document.createElement('div');
+                    name.className = 'font-bold text-slate-800 text-sm';
+                    name.textContent = item.product_name || 'منتج';
+                    const qty = document.createElement('div');
+                    qty.className = 'text-[11px] text-slate-500 mt-1';
+                    qty.textContent = `الكمية: ${Number(item.quantity || 0)}`;
+                    info.appendChild(name);
+                    info.appendChild(qty);
+
+                    const priceInfo = document.createElement('div');
+                    priceInfo.className = 'text-left';
+                    const unit = document.createElement('div');
+                    unit.className = 'text-[11px] text-slate-500';
+                    unit.textContent = `${Number(item.unit_price || 0).toLocaleString('ar-EG')} ج.م`;
+                    const total = document.createElement('div');
+                    total.className = 'font-black text-slate-900 text-sm';
+                    total.textContent = `${Number(item.total ?? item.line_total ?? 0).toLocaleString('ar-EG')} ج.م`;
+                    priceInfo.appendChild(unit);
+                    priceInfo.appendChild(total);
+
+                    productRow.appendChild(info);
+                    productRow.appendChild(priceInfo);
+                    productsList.appendChild(productRow);
+                });
+            }
+            productsBox.appendChild(productsList);
+            right.appendChild(productsBox);
+
+            const totalsBox = document.createElement('div');
+            totalsBox.className = 'rounded-2xl bg-slate-50 border border-slate-200 p-4';
+            const totalsTitle = document.createElement('div');
+            totalsTitle.className = 'text-[11px] font-black text-slate-500 mb-3';
+            totalsTitle.textContent = 'الإجماليات';
+            totalsBox.appendChild(totalsTitle);
+            totalsBox.appendChild(createInfoRow('Subtotal', formatCurrency(order.subtotal || 0)));
+            totalsBox.appendChild(createInfoRow('رسوم التوصيل', formatCurrency(order.delivery_fee || 0)));
+            totalsBox.appendChild(createInfoRow('الإجمالي النهائي', formatCurrency(order.total || 0)));
+            right.appendChild(totalsBox);
+
+            mainGrid.appendChild(left);
+            mainGrid.appendChild(right);
+            body.appendChild(mainGrid);
+            modal.classList.remove('hidden');
+        }
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            if (!container) return;
+
+            const toast = document.createElement('div');
+            toast.className = `rounded-xl px-4 py-3 text-sm font-bold text-white shadow-lg ${type === 'success' ? 'bg-emerald-600' : 'bg-red-600'}`;
+            toast.textContent = message;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.remove();
+            }, 2200);
+        }
+
+        function printOrder(order, mode = 'a4') {
+            const printWindow = window.open('', '_blank', 'width=1000,height=900');
+            if (!printWindow) {
+                showToast('تم حظر نافذة الطباعة من المتصفح', 'error');
+                return;
+            }
+
+            const rows = (order.items || []).map((item) => `
+                <tr>
+                    <td>${escapeHtml(item.product_name || 'منتج')}</td>
+                    <td>${Number(item.quantity || 0)}</td>
+                    <td>${Number(item.unit_price || 0).toLocaleString('ar-EG')} ج.م</td>
+                    <td>${Number(item.total ?? item.line_total ?? 0).toLocaleString('ar-EG')} ج.م</td>
+                </tr>
+            `).join('');
+
+            const html = `
+                <!DOCTYPE html>
+                <html lang="ar" dir="rtl">
+                <head>
+                    <meta charset="UTF-8" />
+                    <title>فاتورة الطلب</title>
+                    <style>
+                        @page { size: ${mode === 'thermal' ? '80mm auto' : 'A4'}; margin: ${mode === 'thermal' ? '4mm' : '12mm'}; }
+                        body { font-family: Arial, sans-serif; margin: 0; padding: ${mode === 'thermal' ? '0' : '32px'}; color: #0f172a; width: ${mode === 'thermal' ? '72mm' : 'auto'}; }
+                        .brand { font-size: 28px; font-weight: 700; text-align: center; margin-bottom: 20px; }
+                        .meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 24px; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                        th, td { border: 1px solid #e2e8f0; padding: 10px; text-align: right; }
+                        .totals { width: 320px; margin: 24px 0 0 auto; }
+                        .row { display: flex; justify-content: space-between; margin-bottom: 8px; }
+                        .footer { text-align: center; margin-top: 28px; color: #475569; }
+                        @media print { body { padding: 0; } }
+                    </style>
+                </head>
+                <body>
+                    <div class="brand">سوبر ماركت حماصة</div>
+                    <div class="meta">
+                        <div><strong>رقم الطلب:</strong> ${escapeHtml(order.order_code || order.id)}</div>
+                        <div><strong>التاريخ:</strong> ${escapeHtml(formatDate(order.created_at, true))}</div>
+                        <div><strong>اسم العميل:</strong> ${escapeHtml(order.customer_name || '-')}</div>
+                        <div><strong>الهاتف:</strong> ${escapeHtml(order.phone || '-')}</div>
+                        <div style="grid-column: 1 / -1;"><strong>العنوان:</strong> ${escapeHtml(order.address || '-')}</div>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>المنتج</th>
+                                <th>الكمية</th>
+                                <th>السعر</th>
+                                <th>الإجمالي</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rows}
+                        </tbody>
+                    </table>
+                    <div class="totals">
+                        <div class="row"><span>الإجمالي الفرعي</span><strong>${Number(order.subtotal || 0).toLocaleString('ar-EG')} ج.م</strong></div>
+                        <div class="row"><span>رسوم التوصيل</span><strong>${Number(order.delivery_fee || 0).toLocaleString('ar-EG')} ج.م</strong></div>
+                        <div class="row"><span>الإجمالي النهائي</span><strong>${Number(order.total || 0).toLocaleString('ar-EG')} ج.م</strong></div>
+                        <div class="row"><span>طريقة الدفع</span><strong>${escapeHtml(order.payment_method || 'cash')}</strong></div>
+                    </div>
+                    <div class="footer">شكرًا لتعاملكم مع سوبر ماركت حماصة</div>
+                </body>
+                </html>
+            `;
+
+            printWindow.document.open();
+            printWindow.document.write(html);
+            printWindow.document.close();
+            printWindow.focus();
+            setTimeout(() => printWindow.print(), 250);
+        }
+
+        let lastKnownOrderCount = 0;
+
+        async function refreshOrders({ silent = false } = {}) {
+            let orders;
+            try {
+                orders = await window.marketApi.getOrders();
+            } catch (error) {
+                ordersCache = [];
+                renderStats();
+                showEmptyState('تعذر تحميل الطلبات', error.message || 'تحقق من إعداد Supabase ثم حاول مرة أخرى');
+                return;
+            }
+            ordersCache = orders;
+            const count = orders.length;
+            if (!silent && count > lastKnownOrderCount && lastKnownOrderCount > 0) {
+                showToast('تم ظهور طلب جديد', 'success');
+            }
+            lastKnownOrderCount = count;
+            renderStats();
+            renderOrdersTable();
+        }
+
+        function bindEvents() {
+            document.getElementById('searchInput').addEventListener('input', renderOrdersTable);
+            document.getElementById('statusFilter').addEventListener('change', renderOrdersTable);
+            document.getElementById('dateFilter').addEventListener('change', renderOrdersTable);
+            document.getElementById('sortSelect').addEventListener('change', renderOrdersTable);
+            document.getElementById('refreshOrdersBtn').addEventListener('click', () => refreshOrders({ silent: false }));
+            document.getElementById('closeDetailModal').addEventListener('click', () => {
+                document.getElementById('orderDetailModal').classList.add('hidden');
+            });
+            document.getElementById('orderDetailModal').addEventListener('click', (event) => {
+                if (event.target.id === 'orderDetailModal') {
+                    document.getElementById('orderDetailModal').classList.add('hidden');
+                }
+            });
+        }
+
+        async function init() {
+            bindEvents();
+            try {
+                if (!(await window.marketAuth.requireAdmin())) {
+                    window.location.href = 'admin.html';
+                    return;
+                }
+            } catch (error) {
+                showEmptyState('تعذر التحقق من صلاحية الإدارة', error.message || 'سجل الدخول من لوحة الإدارة أولاً');
+                return;
+            }
+            await refreshOrders({ silent: true });
+            setInterval(() => refreshOrders({ silent: true }), 15000);
+        }
+
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

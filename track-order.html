@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>تتبع طلبك | سوبر ماركت حماصة</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Cairo', 'Tajawal', 'sans-serif'] },
+          colors: {
+            brand: { 50: '#fffef0', 100: '#fffad7', 200: '#fef08a', 300: '#facc15', 400: '#fbbf24', 500: '#f59e0b', 600: '#d97706', 700: '#b45309', 800: '#92400e', 900: '#78350f' },
+            accent: { 500: '#f97316', 600: '#ea580c' }
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    body { font-family: 'Cairo', 'Tajawal', sans-serif; background: linear-gradient(180deg, #fffef9 0%, #f8fafc 100%); color: #0f172a; }
+    .glass-card { background: rgba(255,255,255,0.9); backdrop-filter: blur(12px); }
+    .timeline-item::before { content: ''; position: absolute; top: 0; bottom: -1.5rem; right: 18px; width: 2px; background: #e2e8f0; }
+    .timeline-item:last-child::before { display: none; }
+    .status-pill { border-radius: 9999px; padding: 0.45rem 0.8rem; font-size: 0.72rem; font-weight: 800; }
+    .status-node { width: 38px; height: 38px; border-radius: 9999px; display: flex; align-items: center; justify-content: center; }
+  </style>
+</head>
+<body class="min-h-screen">
+  <header class="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur-md shadow-sm">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <a href="index.html" class="flex items-center gap-3">
+          <div class="w-12 h-12 rounded-2xl overflow-hidden bg-white shadow-md">
+            <img src="b36d020d-7393-4c30-a5f5-1825f91dfe10.png" alt="Logo" class="w-full h-full object-cover" />
+          </div>
+          <div>
+            <h1 class="text-lg sm:text-xl font-extrabold tracking-tight text-slate-900">سوبر ماركت حماصة</h1>
+          </div>
+        </a>
+      </div>
+      <div class="flex items-center gap-2">
+        <a href="index.html" class="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-all">
+          <i class="fa-solid fa-arrow-right"></i>
+          <span>العودة للتسوق</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+    <section class="glass-card rounded-[28px] border border-slate-200 shadow-xl p-4 sm:p-8">
+      <div class="flex flex-col gap-6">
+        <div class="text-center">
+          <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-brand-100 text-brand-700 text-2xl shadow-sm">
+            <i class="fa-solid fa-box-open"></i>
+          </div>
+          <h2 class="mt-4 text-2xl sm:text-3xl font-black text-slate-900">تتبع طلبك</h2>
+          <p class="mt-2 text-sm text-slate-600">ادخل رقم طلبك لمعرفة حالة الطلب الحالية</p>
+        </div>
+
+        <div class="mx-auto w-full max-w-xl">
+          <div class="flex flex-col sm:flex-row gap-3">
+            <div class="flex-1 relative">
+              <span class="absolute inset-y-0 right-0 flex items-center pr-4 text-slate-400">
+                <i class="fa-solid fa-hashtag"></i>
+              </span>
+              <input id="orderCodeInput" type="text" placeholder="رقم الطلب" class="w-full pl-4 pr-12 py-3.5 rounded-2xl border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </div>
+            <input id="trackingPhoneInput" type="tel" placeholder="رقم الهاتف المستخدم في الطلب" class="flex-1 px-4 py-3.5 rounded-2xl border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            <button id="trackButton" class="bg-brand-600 hover:bg-brand-700 text-white px-6 py-3.5 rounded-2xl shadow-lg shadow-brand-600/20 text-sm font-black transition-all">
+              <i class="fa-solid fa-magnifying-glass ml-2"></i>تتبع الطلب
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="trackingResult" class="mt-8 hidden"></section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./supabase.local.js"></script>
+  <script src="./supabase.js"></script>
+  <script>
+    const ORDER_STATUS_LABELS = {
+      new: 'تم استلام الطلب',
+      confirmed: 'تم تأكيد الطلب',
+      preparing: 'جاري تجهيز الطلب',
+      ready: 'الطلب جاهز للتوصيل',
+      out_for_delivery: 'خرج الطلب للتوصيل',
+      delivered: 'تم تسليم الطلب',
+      cancelled: 'تم إلغاء الطلب'
+    };
+
+    const ORDER_STATUS_TIMELINE = [
+      'new',
+      'confirmed',
+      'preparing',
+      'ready',
+      'out_for_delivery',
+      'delivered'
+    ];
+
+    function escapeHtml(value = '') {
+      return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function formatDateTime(value) {
+      if (!value) return '-';
+      try {
+        return new Date(value).toLocaleString('ar-EG', {
+          year: 'numeric',
+          month: 'numeric',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      } catch (error) {
+        return '-';
+      }
+    }
+
+    function formatCurrency(value) {
+      return `${Number(value || 0).toLocaleString('ar-EG')} ج.م`;
+    }
+
+    async function getOrderByQuery(searchValue, phone) {
+      if (!searchValue || !phone) return null;
+      return window.marketApi.trackOrder(searchValue, phone);
+    }
+
+    function getStepState(step, currentStatus) {
+      if (currentStatus === 'cancelled') return 'pending';
+      const currentIndex = ORDER_STATUS_TIMELINE.indexOf(currentStatus);
+      const stepIndex = ORDER_STATUS_TIMELINE.indexOf(step);
+      if (stepIndex < currentIndex) return 'completed';
+      if (stepIndex === currentIndex) return 'active';
+      return 'pending';
+    }
+
+    function renderTimeline(order) {
+      const currentStatus = order.status;
+      const stages = [
+        { key: 'new', label: 'تم استلام الطلب', icon: 'fa-bag-shopping' },
+        { key: 'confirmed', label: 'تم تأكيد الطلب', icon: 'fa-circle-check' },
+        { key: 'preparing', label: 'جاري تجهيز الطلب', icon: 'fa-kitchen-set' },
+        { key: 'ready', label: 'الطلب جاهز للتوصيل', icon: 'fa-box' },
+        { key: 'out_for_delivery', label: 'خرج الطلب للتوصيل', icon: 'fa-truck' },
+        { key: 'delivered', label: 'تم تسليم الطلب', icon: 'fa-gift' }
+      ];
+
+      const items = stages.map((stage) => {
+        const state = getStepState(stage.key, currentStatus);
+        const isCompleted = state === 'completed';
+        const isActive = state === 'active';
+        const isPending = state === 'pending';
+
+        return `
+          <div class="timeline-item relative pl-8 pb-7 last:pb-0">
+            <div class="absolute right-0 top-0 flex items-center justify-center ${isCompleted ? 'bg-emerald-500 text-white' : isActive ? 'bg-brand-500 text-white' : 'bg-slate-200 text-slate-500'} status-node">
+              <i class="fa-solid ${stage.icon}"></i>
+            </div>
+            <div class="pr-12">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="font-black text-slate-900 text-sm">${stage.label}</span>
+                ${isCompleted ? '<span class="status-pill bg-emerald-100 text-emerald-700">مكتمل</span>' : isActive ? '<span class="status-pill bg-brand-100 text-brand-700">الحالة الحالية</span>' : '<span class="status-pill bg-slate-100 text-slate-500">قادم</span>'}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <div class="bg-white border border-slate-200 rounded-3xl shadow-lg p-5 sm:p-6">
+          <div class="flex items-center justify-between gap-3 mb-6">
+            <h3 class="text-xl font-black text-slate-900">حالة طلبك</h3>
+            <span class="status-pill ${currentStatus === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-brand-100 text-brand-700'}">${escapeHtml(ORDER_STATUS_LABELS[currentStatus] || currentStatus)}</span>
+          </div>
+          <div class="space-y-0">${items}</div>
+        </div>
+      `;
+    }
+
+    function renderCancelledState(order) {
+      return `
+        <div class="bg-red-50 border border-red-200 rounded-3xl shadow-lg p-6">
+          <div class="flex items-center gap-3 text-red-700 mb-3">
+            <div class="w-12 h-12 rounded-2xl bg-red-100 flex items-center justify-center text-xl">
+              <i class="fa-solid fa-circle-xmark"></i>
+            </div>
+            <h3 class="text-xl font-black">❌ تم إلغاء الطلب</h3>
+          </div>
+          <p class="text-sm text-red-700 leading-relaxed">هذا الطلب تم إلغاؤه ولم يعد قيد التنفيذ. إذا كنت تحتاج إلى مساعدة إضافية، يمكنك التواصل مع الإدارة مباشرة.</p>
+        </div>
+      `;
+    }
+
+    function renderEmptyState() {
+      const container = document.getElementById('trackingResult');
+      if (!container) return;
+      container.classList.remove('hidden');
+      container.innerHTML = `
+        <div class="bg-white border border-slate-200 rounded-3xl shadow-lg p-6 sm:p-8 text-center">
+          <div class="mx-auto w-16 h-16 rounded-2xl bg-brand-100 text-brand-700 flex items-center justify-center text-2xl mb-4">
+            <i class="fa-solid fa-shield-halved"></i>
+          </div>
+          <h3 class="text-xl font-black text-slate-900 mb-2">أدخل رقم الطلب ورقم الهاتف</h3>
+          <p class="text-sm text-slate-600">نستخدم رقم الهاتف للتحقق من ملكية بيانات الطلب وحمايتها.</p>
+        </div>
+      `;
+    }
+
+    function renderResult(order) {
+      const container = document.getElementById('trackingResult');
+      if (!container) return;
+
+      if (!order) {
+        container.classList.remove('hidden');
+        container.innerHTML = `
+          <div class="bg-white border border-red-100 rounded-3xl shadow-lg p-6 sm:p-8 text-center">
+            <div class="mx-auto w-16 h-16 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center text-2xl mb-4">
+              <i class="fa-solid fa-circle-exclamation"></i>
+            </div>
+            <h3 class="text-xl font-black text-slate-900 mb-2">ملقيناش طلب بالرقم ده</h3>
+            <p class="text-sm text-slate-600">برجاء التأكد من رقم الطلب أو إدخال رقم صحيح.</p>
+          </div>
+        `;
+        return;
+      }
+
+      const orderCode = order.order_code || order.id;
+      const paymentLabel = order.payment_method === 'cash' ? 'الدفع عند الاستلام' : order.payment_method === 'card' ? 'بطاقة ائتمانية' : order.payment_method === 'wallet' ? 'محفظة إلكترونية' : 'غير محدد';
+
+      container.classList.remove('hidden');
+      container.innerHTML = `
+        <div class="grid gap-6 lg:grid-cols-[1.3fr_0.7fr]">
+          <div class="space-y-6">
+            <div class="bg-white border border-slate-200 rounded-3xl shadow-lg p-5 sm:p-6">
+              <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+                <div>
+                  <p class="text-xs font-bold text-slate-500">رقم الطلب</p>
+                  <h3 class="text-2xl font-black text-slate-900 mt-1">#${escapeHtml(orderCode)}</h3>
+                </div>
+                <span class="status-pill ${order.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-brand-100 text-brand-700'}">${escapeHtml(ORDER_STATUS_LABELS[order.status] || order.status)}</span>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                <div class="rounded-2xl bg-slate-50 border border-slate-200 p-4">
+                  <p class="text-slate-500 text-xs font-bold">اسم العميل</p>
+                  <p class="mt-1 font-extrabold text-slate-900">${escapeHtml(order.customer_name || '-')}</p>
+                </div>
+                <div class="rounded-2xl bg-slate-50 border border-slate-200 p-4">
+                  <p class="text-slate-500 text-xs font-bold">تاريخ ووقت الطلب</p>
+                  <p class="mt-1 font-extrabold text-slate-900">${escapeHtml(formatDateTime(order.created_at))}</p>
+                </div>
+                <div class="rounded-2xl bg-slate-50 border border-slate-200 p-4">
+                  <p class="text-slate-500 text-xs font-bold">إجمالي الطلب</p>
+                  <p class="mt-1 font-extrabold text-slate-900">${escapeHtml(formatCurrency(order.total || 0))}</p>
+                </div>
+                <div class="rounded-2xl bg-slate-50 border border-slate-200 p-4">
+                  <p class="text-slate-500 text-xs font-bold">طريقة الدفع</p>
+                  <p class="mt-1 font-extrabold text-slate-900">${escapeHtml(paymentLabel)}</p>
+                </div>
+              </div>
+            </div>
+
+            ${order.status === 'cancelled' ? renderCancelledState(order) : renderTimeline(order)}
+          </div>
+
+          <aside class="bg-white border border-slate-200 rounded-3xl shadow-lg p-5 sm:p-6 h-fit">
+            <h4 class="text-base font-black text-slate-900 mb-4">ملخص الطلب</h4>
+            <div class="space-y-3 text-sm">
+              <div class="flex items-center justify-between gap-3 border-b border-slate-100 pb-2">
+                <span class="text-slate-500">المجموع الفرعي</span>
+                <span class="font-bold text-slate-900">${escapeHtml(formatCurrency(order.subtotal || 0))}</span>
+              </div>
+              <div class="flex items-center justify-between gap-3 border-b border-slate-100 pb-2">
+                <span class="text-slate-500">رسوم التوصيل</span>
+                <span class="font-bold text-slate-900">${escapeHtml(formatCurrency(order.delivery_fee || 0))}</span>
+              </div>
+              <div class="flex items-center justify-between gap-3 pt-1">
+                <span class="text-slate-600 font-black">الإجمالي</span>
+                <span class="font-black text-brand-700">${escapeHtml(formatCurrency(order.total || 0))}</span>
+              </div>
+            </div>
+            <div class="mt-5 rounded-2xl bg-slate-50 border border-slate-200 p-4 text-xs text-slate-600 leading-relaxed">
+              <p class="font-extrabold text-slate-800 mb-1">العنوان</p>
+              <p>${escapeHtml(order.address || '-')}</p>
+            </div>
+            <button id="refreshButton" class="mt-5 w-full bg-slate-900 hover:bg-slate-800 text-white py-3 rounded-2xl text-sm font-black transition-all">
+              <i class="fa-solid fa-arrows-rotate ml-2"></i>🔄 تحديث حالة الطلب
+            </button>
+          </aside>
+        </div>
+      `;
+    }
+
+    async function trackOrder(searchValue, phone) {
+      let result = null;
+      try {
+        result = await getOrderByQuery(searchValue, phone);
+      } catch (error) {
+        console.error('Tracking failed:', error);
+      }
+      renderResult(result);
+    }
+
+    function startup() {
+      const input = document.getElementById('orderCodeInput');
+      const phoneInput = document.getElementById('trackingPhoneInput');
+      const button = document.getElementById('trackButton');
+      const result = document.getElementById('trackingResult');
+
+      if (!input || !button || !result) return;
+
+      function showLoadingState() {
+        result.classList.remove('hidden');
+        result.innerHTML = `
+          <div class="bg-white border border-slate-200 rounded-3xl shadow-lg p-6 text-center">
+            <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-brand-100 text-brand-700 text-xl mb-3">
+              <i class="fa-solid fa-spinner fa-spin"></i>
+            </div>
+            <p class="text-sm font-bold text-slate-700">جاري البحث عن طلبك...</p>
+          </div>
+        `;
+      }
+
+      const params = new URLSearchParams(window.location.search);
+      const orderParam = params.get('order');
+      const savedPhone = sessionStorage.getItem('hamasa_tracking_phone') || '';
+      if (savedPhone) phoneInput.value = savedPhone;
+      if (orderParam) {
+        input.value = orderParam;
+        if (phoneInput.value.trim()) {
+          showLoadingState();
+          setTimeout(() => trackOrder(orderParam, phoneInput.value.trim()), 250);
+        } else {
+          renderEmptyState();
+        }
+      } else {
+        renderEmptyState();
+      }
+
+      button.addEventListener('click', () => {
+        const orderValue = input.value.trim();
+        const phoneValue = phoneInput.value.trim();
+        if (!orderValue || !phoneValue) {
+          renderEmptyState();
+          return;
+        }
+        showLoadingState();
+        setTimeout(() => trackOrder(orderValue, phoneValue), 250);
+      });
+
+      result.addEventListener('click', (event) => {
+        const refreshButton = event.target.closest('#refreshButton');
+        if (!refreshButton) return;
+        const current = input.value.trim();
+        const phone = phoneInput.value.trim();
+        if (current && phone) {
+          showLoadingState();
+          setTimeout(() => trackOrder(current, phone), 250);
+        }
+      });
+
+      setInterval(() => {
+        const current = input.value.trim();
+        const phone = phoneInput.value.trim();
+        if (current && phone) {
+          trackOrder(current, phone);
+        }
+      }, 10000);
+    }
+
+    document.addEventListener('DOMContentLoaded', startup);
+  </script>
+</body>
+</html>
