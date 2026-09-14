@@ -345,99 +345,6 @@
             deliveryFee: 20
         };
 
-        const DEFAULT_CATEGORIES = [
-            { id: 'all', name: 'الكل', icon: 'fa-border-all' },
-            { id: 'dairy', name: 'ألبان وأجبان', icon: 'fa-cow' },
-            { id: 'beverages', name: 'مشروبات وعصائر', icon: 'fa-bottle-droplet' },
-            { id: 'snacks', name: 'تسالي وشيبسي', icon: 'fa-cookie-bite' },
-            { id: 'grains', name: 'أرز ومقرمشات', icon: 'fa-bowl-rice' },
-            { id: 'cleaning', name: 'منظفات وعناية', icon: 'fa-spray-can-sparkles' },
-            { id: 'fresh', name: 'خضار وفواكه', icon: 'fa-apple-whole' }
-        ];
-
-        const DEFAULT_PRODUCTS = [
-            {
-                id: 1,
-                name: 'حليب المراعي كامل الدسم 1 لتر',
-                price: 38,
-                oldPrice: 42,
-                hasDiscount: true,
-                category: 'dairy',
-                unit: 'لتر',
-                image: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=500&q=80'
-            },
-            {
-                id: 2,
-                name: 'بيبسي زجاجة عائلية 1.5 لتر',
-                price: 25,
-                oldPrice: 28,
-                hasDiscount: true,
-                category: 'beverages',
-                unit: 'زجاجة',
-                image: 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=500&q=80'
-            },
-            {
-                id: 3,
-                name: 'شيبسي شطة وليمون كبير',
-                price: 10,
-                oldPrice: 12,
-                hasDiscount: true,
-                category: 'snacks',
-                unit: 'كيس',
-                image: 'https://images.unsplash.com/photo-1566478989037-eec170784d0b?auto=format&fit=crop&w=500&q=80'
-            },
-            {
-                id: 4,
-                name: 'أرز الضحى الفاخر 1 كيلو',
-                price: 32,
-                oldPrice: 35,
-                hasDiscount: false,
-                category: 'grains',
-                unit: 'كيلو',
-                image: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=500&q=80'
-            },
-            {
-                id: 5,
-                name: 'مسحوق غسيل أوتوماتيك برسيل 2.5 ك',
-                price: 145,
-                oldPrice: 160,
-                hasDiscount: true,
-                category: 'cleaning',
-                unit: 'كيس',
-                image: 'https://images.unsplash.com/photo-1585421514284-efb74c2b69ba?auto=format&fit=crop&w=500&q=80'
-            },
-            {
-                id: 6,
-                name: 'جبنة بيضاء إسطنبولي براميلي',
-                price: 60,
-                oldPrice: 65,
-                hasDiscount: false,
-                category: 'dairy',
-                unit: 'كيلو',
-                image: 'https://images.unsplash.com/photo-1452195100486-9cc805987862?auto=format&fit=crop&w=500&q=80'
-            },
-            {
-                id: 7,
-                name: 'شوكولاتة كادبوري ديري ميلك',
-                price: 35,
-                oldPrice: 40,
-                hasDiscount: true,
-                category: 'snacks',
-                unit: 'قطعة',
-                image: 'https://images.unsplash.com/photo-1548907040-4baa42d10919?auto=format&fit=crop&w=500&q=80'
-            },
-            {
-                id: 8,
-                name: 'مياه معدنية أوافينا 1.5 لتر',
-                price: 8,
-                oldPrice: 10,
-                hasDiscount: false,
-                category: 'beverages',
-                unit: 'زجاجة',
-                image: 'https://images.unsplash.com/photo-1548839140-29a749e1cf4d?auto=format&fit=crop&w=500&q=80'
-            }
-        ];
-
         function escapeHTML(value = '') {
             return String(value)
                 .replaceAll('&', '&amp;')
@@ -447,18 +354,51 @@
                 .replaceAll("'", '&#039;');
         }
 
-        let products = [...DEFAULT_PRODUCTS];
-        let categories = [...DEFAULT_CATEGORIES];
+        let products = [];
+        let categories = [{ id: 'all', name: 'الكل', icon: 'fa-border-all' }];
         let STORE_CONFIG = { ...DEFAULT_STORE_CONFIG };
-        let cart = JSON.parse(localStorage.getItem('al_saada_cart') || '[]');
+        let cart = [];
         let currentCategory = 'all';
         let searchQuery = '';
         let currentSort = 'default';
 
+        function normalizeCart(items = []) {
+            const map = new Map();
+
+            for (const item of Array.isArray(items) ? items : []) {
+                const key = String(item && item.id !== undefined ? item.id : '');
+                if (!key) continue;
+
+                const nextQty = Number(item.qty || 1);
+                const quantity = Number.isFinite(nextQty) && nextQty > 0 ? nextQty : 1;
+
+                if (!map.has(key)) {
+                    map.set(key, { ...item, qty: quantity });
+                    continue;
+                }
+
+                const existing = map.get(key);
+                existing.qty = Number(existing.qty || 0) + quantity;
+            }
+
+            return Array.from(map.values());
+        }
+
+        function loadCart() {
+            try {
+                cart = normalizeCart(JSON.parse(localStorage.getItem('al_saada_cart') || '[]'));
+            } catch (error) {
+                console.error('Cart load failed:', error);
+                cart = [];
+            }
+        }
+
         async function loadStoreData() {
             const supabaseClient = window.marketSupabase;
             if (!supabaseClient) {
-                console.warn('Supabase not available. Using default front-end data fallback.');
+                console.warn('Supabase not available. Products and categories will stay empty until data is loaded.');
+                products = [];
+                categories = [{ id: 'all', name: 'الكل', icon: 'fa-border-all' }];
                 return;
             }
 
@@ -482,11 +422,13 @@
                 }
 
                 if (categoriesData.length) {
-                    categories = categoriesData.map(category => ({
+                    categories = [{ id: 'all', name: 'الكل', icon: 'fa-border-all' }, ...categoriesData.map(category => ({
                         id: category.id,
                         name: category.name || 'غير مسمى',
                         icon: category.icon || 'fa-tag'
-                    }));
+                    }))];
+                } else {
+                    categories = [{ id: 'all', name: 'الكل', icon: 'fa-border-all' }];
                 }
 
                 if (productsData.length) {
@@ -501,6 +443,8 @@
                         image: product.image_url || product.image || '',
                         qty: 0
                     }));
+                } else {
+                    products = [];
                 }
 
                 console.log('Store data loaded from Supabase');
@@ -510,6 +454,7 @@
         }
 
         document.addEventListener('DOMContentLoaded', async () => {
+            loadCart();
             await loadStoreData();
             updateStoreInfo();
             renderCategories();
@@ -536,7 +481,8 @@
 
         function renderCategories() {
             const container = document.getElementById('categoriesContainer');
-            container.innerHTML = categories.map(cat => {
+            const categoryList = categories.length ? categories : [{ id: 'all', name: 'الكل', icon: 'fa-border-all' }];
+            container.innerHTML = categoryList.map(cat => {
                 const isActive = currentCategory === cat.id;
                 return `
                     <button onclick="filterCategory('${escapeHTML(cat.id)}')" class="flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-extrabold whitespace-nowrap transition-all shadow-sm ${
@@ -586,6 +532,19 @@
         function renderProducts() {
             const grid = document.getElementById('productsGrid');
             const emptyState = document.getElementById('emptyState');
+
+            if (!products.length) {
+                grid.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                emptyState.innerHTML = `
+                    <div class="w-20 h-20 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
+                        <i class="fa-solid fa-box-open"></i>
+                    </div>
+                    <h4 class="text-lg font-bold text-slate-800">لا توجد منتجات متاحة حالياً</h4>
+                    <p class="text-sm text-slate-500 mt-1">سيظهر catálogo المتجر هنا عندما يتم إضافة المنتجات من لوحة التحكم.</p>
+                `;
+                return;
+            }
 
             let filtered = products.filter(p => {
                 const matchesCat = currentCategory === 'all' || p.category === currentCategory;
@@ -680,13 +639,14 @@
             const product = products.find(p => p.id === productId);
             if (!product) return;
 
-            const existing = cart.find(item => item.id === productId);
+            const existing = cart.find(item => String(item.id) === String(productId));
             if (existing) {
-                existing.qty += 1;
+                existing.qty = Number(existing.qty || 0) + 1;
             } else {
                 cart.push({ ...product, qty: 1 });
             }
 
+            cart = normalizeCart(cart);
             saveCart();
             renderProducts();
             updateCartUI();
@@ -711,19 +671,22 @@
         }
 
         function updateQty(productId, newQty) {
+            const key = String(productId);
             if (newQty <= 0) {
-                cart = cart.filter(item => item.id !== productId);
+                cart = cart.filter(item => String(item.id) !== key);
             } else {
-                const item = cart.find(i => i.id === productId);
+                const item = cart.find(i => String(i.id) === key);
                 if (item) item.qty = newQty;
             }
 
+            cart = normalizeCart(cart);
             saveCart();
             renderProducts();
             updateCartUI();
         }
 
         function saveCart() {
+            cart = normalizeCart(cart);
             localStorage.setItem('al_saada_cart', JSON.stringify(cart));
         }
 
