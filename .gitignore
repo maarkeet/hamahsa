@@ -2,3 +2,4 @@
 .env.local
 *.secret.*
 *.key
+node_modules/

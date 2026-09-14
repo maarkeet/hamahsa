@@ -7,13 +7,15 @@
 1. نفّذ [schema.sql](schema.sql) في Supabase SQL Editor.
 2. أنشئ حساب الإدارة في Supabase Auth باستخدام Email/Password.
 3. أضف صف المستخدم إلى `admin_users` مع `role = 'admin'` و`is_active = true`.
-4. ارفع جذر المستودع إلى Cloudflare Pages.
+4. اربط مستودع GitHub مع Cloudflare Pages.
 
 إعدادات Cloudflare Pages:
 
 - Framework preset: `None`
-- Build command: لا يوجد
+- Build command: `npm run build`
 - Output directory: `/`
+
+يبني الأمر ملف `assets/tailwind.css` من `src/input.css` قبل نشر جذر المستودع.
 
 لا يحتاج المشروع إلى Node.js أو Backend أو أي ملف إعداد محلي. مفتاح Supabase الموجود في [supabase.js](supabase.js) هو Public/Publishable key فقط.
 
