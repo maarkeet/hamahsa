@@ -336,15 +336,15 @@
     </div>
 
     <!-- JAVASCRIPT LOGIC -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="./supabase.js"></script>
     <script>
-        // Default Store Settings (will be overridden by localStorage if available)
         const DEFAULT_STORE_CONFIG = {
             name: "سوبر ماركت حماصه",
             whatsapp: "201144191571",
             deliveryFee: 20
         };
 
-        // Default Categories (will be overridden by localStorage if available)
         const DEFAULT_CATEGORIES = [
             { id: 'all', name: 'الكل', icon: 'fa-border-all' },
             { id: 'dairy', name: 'ألبان وأجبان', icon: 'fa-cow' },
@@ -438,16 +438,79 @@
             }
         ];
 
-        let products = JSON.parse(localStorage.getItem('al_saada_products')) || DEFAULT_PRODUCTS;
-        let categories = JSON.parse(localStorage.getItem('al_saada_categories')) || DEFAULT_CATEGORIES;
-        let STORE_CONFIG = JSON.parse(localStorage.getItem('al_saada_settings')) || DEFAULT_STORE_CONFIG;
-        let cart = JSON.parse(localStorage.getItem('al_saada_cart')) || [];
+        function escapeHTML(value = '') {
+            return String(value)
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#039;');
+        }
+
+        let products = [...DEFAULT_PRODUCTS];
+        let categories = [...DEFAULT_CATEGORIES];
+        let STORE_CONFIG = { ...DEFAULT_STORE_CONFIG };
+        let cart = JSON.parse(localStorage.getItem('al_saada_cart') || '[]');
         let currentCategory = 'all';
         let searchQuery = '';
         let currentSort = 'default';
 
-        // Initialize on DOM Load
-        document.addEventListener('DOMContentLoaded', () => {
+        async function loadStoreData() {
+            const supabaseClient = window.marketSupabase;
+            if (!supabaseClient) {
+                console.warn('Supabase not available. Using default front-end data fallback.');
+                return;
+            }
+
+            try {
+                const [settingsResult, categoriesResult, productsResult] = await Promise.all([
+                    supabaseClient.from('store_settings').select('*').limit(1),
+                    supabaseClient.from('categories').select('*').order('display_order', { ascending: true }),
+                    supabaseClient.from('products').select('*').order('created_at', { ascending: false })
+                ]);
+
+                const settingsData = settingsResult.data && settingsResult.data[0];
+                const categoriesData = categoriesResult.data || [];
+                const productsData = productsResult.data || [];
+
+                if (settingsData) {
+                    STORE_CONFIG = {
+                        name: settingsData.name || DEFAULT_STORE_CONFIG.name,
+                        whatsapp: settingsData.whatsapp || DEFAULT_STORE_CONFIG.whatsapp,
+                        deliveryFee: Number(settingsData.delivery_fee ?? DEFAULT_STORE_CONFIG.deliveryFee)
+                    };
+                }
+
+                if (categoriesData.length) {
+                    categories = categoriesData.map(category => ({
+                        id: category.id,
+                        name: category.name || 'غير مسمى',
+                        icon: category.icon || 'fa-tag'
+                    }));
+                }
+
+                if (productsData.length) {
+                    products = productsData.map(product => ({
+                        id: product.id,
+                        name: product.name,
+                        price: Number(product.price || 0),
+                        oldPrice: Number(product.old_price ?? 0),
+                        hasDiscount: Boolean(product.has_discount),
+                        category: product.category || 'all',
+                        unit: product.unit || 'قطعة',
+                        image: product.image_url || product.image || '',
+                        qty: 0
+                    }));
+                }
+
+                console.log('Store data loaded from Supabase');
+            } catch (error) {
+                console.error('Failed to load store data from Supabase:', error);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadStoreData();
             updateStoreInfo();
             renderCategories();
             renderProducts();
@@ -476,13 +539,13 @@
             container.innerHTML = categories.map(cat => {
                 const isActive = currentCategory === cat.id;
                 return `
-                    <button onclick="filterCategory('${cat.id}')" class="flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-extrabold whitespace-nowrap transition-all shadow-sm ${
+                    <button onclick="filterCategory('${escapeHTML(cat.id)}')" class="flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-extrabold whitespace-nowrap transition-all shadow-sm ${
                         isActive 
                         ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/30 scale-105' 
                         : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
                     }">
-                        <i class="fa-solid ${cat.icon} ${isActive ? 'text-white' : 'text-brand-600'}"></i>
-                        <span>${cat.name}</span>
+                        <i class="fa-solid ${escapeHTML(cat.icon)} ${isActive ? 'text-white' : 'text-brand-600'}"></i>
+                        <span>${escapeHTML(cat.name)}</span>
                     </button>
                 `;
             }).join('');
@@ -553,41 +616,37 @@
 
                 return `
                     <div class="product-card bg-white rounded-3xl border border-slate-200/80 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col overflow-hidden group relative">
-                        <!-- Discount Badge -->
                         ${product.hasDiscount ? `
                             <span class="absolute top-3 right-3 z-10 bg-accent-500 text-white text-[10px] font-black px-2.5 py-1 rounded-full shadow-md uppercase tracking-wider">
                                 خصم
                             </span>
                         ` : ''}
 
-                        <!-- Image Container -->
                         <div class="relative w-full pt-[85%] bg-slate-100 overflow-hidden">
-                            <img src="${product.image}" alt="${product.name}" onerror="this.src='https://placehold.co/400x400/e2e8f0/64748b?text=سوبر+ماركت'" class="product-img absolute inset-0 w-full h-full object-cover">
+                            <img src="${escapeHTML(product.image)}" alt="${escapeHTML(product.name)}" onerror="this.src='https://placehold.co/400x400/e2e8f0/64748b?text=سوبر+ماركت'" class="product-img absolute inset-0 w-full h-full object-cover">
                         </div>
 
-                        <!-- Content -->
                         <div class="p-4 flex-1 flex flex-col justify-between">
                             <div>
                                 <span class="text-[10px] font-bold text-brand-700 bg-brand-50 px-2.5 py-1 rounded-full border border-brand-100 inline-block mb-2">
-                                    ${getCategoryName(product.category)}
+                                    ${escapeHTML(getCategoryName(product.category))}
                                 </span>
                                 <h4 class="font-extrabold text-slate-900 text-sm sm:text-base line-clamp-2 leading-snug group-hover:text-brand-600 transition-colors">
-                                    ${product.name}
+                                    ${escapeHTML(product.name)}
                                 </h4>
                             </div>
 
                             <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
                                 <div>
                                     <div class="flex items-baseline gap-1.5">
-                                        <span class="text-base sm:text-lg font-black text-brand-600">${product.price}</span>
-                                        <span class="text-[10px] font-bold text-slate-400">ج.م / ${product.unit}</span>
+                                        <span class="text-base sm:text-lg font-black text-brand-600">${Number(product.price).toLocaleString('ar-EG')}</span>
+                                        <span class="text-[10px] font-bold text-slate-400">ج.م / ${escapeHTML(product.unit)}</span>
                                     </div>
                                     ${product.oldPrice && product.oldPrice > product.price ? `
-                                        <span class="text-xs text-slate-400 line-through">${product.oldPrice} ج.م</span>
+                                        <span class="text-xs text-slate-400 line-through">${Number(product.oldPrice).toLocaleString('ar-EG')} ج.م</span>
                                     ` : ''}
                                 </div>
 
-                                <!-- Add to Cart / Qty Controls -->
                                 <div>
                                     ${qty === 0 ? `
                                         <button onclick="addToCart(${product.id})" class="w-10 h-10 rounded-2xl bg-brand-50 hover:bg-brand-600 text-brand-600 hover:text-white flex items-center justify-center transition-all shadow-sm group-hover:bg-brand-600 group-hover:text-white">
@@ -640,7 +699,7 @@
             notification.className = 'fixed bottom-24 right-4 bg-brand-500 text-white px-6 py-3 rounded-2xl shadow-2xl z-50 flex items-center gap-3 animate-slide-in';
             notification.innerHTML = `
                 <i class="fa-solid fa-check-circle text-xl"></i>
-                <span class="font-bold text-sm">تم إضافة ${productName} للسلة</span>
+                <span class="font-bold text-sm">تم إضافة ${escapeHTML(productName)} للسلة</span>
             `;
             document.body.appendChild(notification);
 
