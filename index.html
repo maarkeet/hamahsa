@@ -197,6 +197,7 @@
       <h4 id="alertTitle" class="text-lg font-black text-slate-900 mb-1">تمت العملية بنجاح</h4>
       <p id="alertMessage" class="text-xs text-slate-500 mb-4 leading-relaxed">رسالة توضيحية هنا...</p>
       <button id="alertTrackButton" onclick="goToOrderTrackingFromModal()" class="hidden w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-2xl font-black text-sm transition-all mb-2">📦 تتبع طلبك الآن</button>
+      <button id="alertRetryButton" class="hidden w-full bg-slate-900 hover:bg-slate-800 text-white py-3 rounded-2xl font-black text-sm transition-all mb-2">إعادة المحاولة</button>
       <button id="alertPrimaryButton" onclick="closeAlertModal()" class="w-full bg-brand-600 hover:bg-brand-700 text-white py-3 rounded-2xl font-bold text-sm transition-all">حسناً</button>
     </div>
   </div>
@@ -253,13 +254,12 @@
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="./supabase.local.js"></script>
   <script src="./supabase.js"></script>
   <script>
-    const DEFAULT_STORE_CONFIG = { name: 'سوبر ماركت حماصة', whatsapp: '201144191571', deliveryFee: 20 };
+    const EMPTY_STORE_CONFIG = { name: 'سوبر ماركت حماصة', deliveryFee: 0 };
     let products = [];
     let categories = [{ id: 'all', name: 'الكل', icon: 'fa-border-all' }];
-    let STORE_CONFIG = { ...DEFAULT_STORE_CONFIG };
+    let STORE_CONFIG = { ...EMPTY_STORE_CONFIG };
     let cart = [];
     let currentCategory = 'all';
     let searchQuery = '';
@@ -292,16 +292,11 @@
     }
 
     function loadCart() {
-      try {
-        cart = normalizeCart(JSON.parse(localStorage.getItem('al_saada_cart') || '[]'));
-      } catch (error) {
-        cart = [];
-      }
+      cart = [];
     }
 
     function saveCart() {
       cart = normalizeCart(cart);
-      localStorage.setItem('al_saada_cart', JSON.stringify(cart));
     }
 
     function deduplicateCategories(rawCategories = []) {
@@ -334,12 +329,11 @@
         const { settings, categories: categoriesData, products: productsData } = await window.marketApi.getCatalog();
         if (settings) {
           STORE_CONFIG = {
-            name: settings.name || DEFAULT_STORE_CONFIG.name,
-            whatsapp: settings.whatsapp || DEFAULT_STORE_CONFIG.whatsapp,
-            deliveryFee: Number(settings.delivery_fee ?? settings.deliveryFee ?? DEFAULT_STORE_CONFIG.deliveryFee)
+            name: settings.name || EMPTY_STORE_CONFIG.name,
+            deliveryFee: Number(settings.delivery_fee ?? settings.deliveryFee ?? EMPTY_STORE_CONFIG.deliveryFee)
           };
         } else {
-          STORE_CONFIG = { ...DEFAULT_STORE_CONFIG };
+          STORE_CONFIG = { ...EMPTY_STORE_CONFIG };
         }
 
         categories = deduplicateCategories(categoriesData);
@@ -359,7 +353,7 @@
         })) : [];
       } catch (error) {
         console.error('Failed to load Supabase catalog:', error);
-        showAlert('تعذر تحميل المتجر', error.message || 'تحقق من إعداد Supabase ثم حاول مرة أخرى.', 'fa-cloud-arrow-down', 'bg-red-100 text-red-600');
+        showAlert('تعذر الاتصال بالخادم', 'تحقق من اتصال الإنترنت ثم حاول مرة أخرى.', 'fa-cloud-arrow-down', 'bg-red-100 text-red-600', { retry: loadStoreData });
         products = [];
         categories = [{ id: 'all', name: 'الكل', icon: 'fa-border-all' }];
       }
@@ -444,7 +438,7 @@
             <i class="fa-solid fa-box-open"></i>
           </div>
           <h4 class="text-lg font-bold text-slate-800">لا توجد منتجات متاحة حالياً</h4>
-          <p class="text-sm text-slate-500 mt-1">سيظهر catálogo المتجر هنا عند إضافة المنتجات داخل لوحة الإدارة المحلية.</p>
+          <p class="text-sm text-slate-500 mt-1">أضف المنتجات من لوحة الإدارة لتظهر هنا.</p>
         `;
         return;
       }
@@ -678,7 +672,6 @@
       updateCartUI();
       closeCheckoutModal();
       document.getElementById('checkoutForm').reset();
-      sessionStorage.setItem('hamasa_tracking_phone', phone);
       showAlert('تم استلام طلبك بنجاح 🎉', 'رقم طلبك: #' + order.order_code, 'fa-check', 'bg-emerald-100 text-emerald-600', {
         trackOrderCode: order.order_code,
         primaryLabel: 'حسناً'
@@ -691,6 +684,7 @@
       const msgEl = document.getElementById('alertMessage');
       const iconContainer = document.getElementById('alertIcon');
       const trackButton = document.getElementById('alertTrackButton');
+      const retryButton = document.getElementById('alertRetryButton');
       const primaryButton = document.getElementById('alertPrimaryButton');
       if (!modal || !titleEl || !msgEl || !iconContainer) return;
       titleEl.innerText = title;
@@ -706,6 +700,16 @@
           delete trackButton.dataset.trackOrder;
           trackButton.classList.add('hidden');
         }
+      }
+
+      if (retryButton) {
+        retryButton.classList.toggle('hidden', typeof options.retry !== 'function');
+        retryButton.onclick = typeof options.retry === 'function' ? async () => {
+          retryButton.disabled = true;
+          closeAlertModal();
+          await options.retry();
+          retryButton.disabled = false;
+        } : null;
       }
 
       if (primaryButton) {

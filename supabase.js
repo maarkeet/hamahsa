@@ -1,16 +1,11 @@
 const SUPABASE_URL = 'https://hkpwuzlcargeokhnqrbo.supabase.co';
-const SUPABASE_PUBLISHABLE_KEY = window.SUPABASE_ANON_KEY || '';
+const SUPABASE_PUBLIC_KEY = 'sb_publishable_Jp74ureRmMBlNwsb8wYmjQ_U0Qd-s2G';
 
 if (!window.supabase) {
     throw new Error('Supabase JS library لم يتم تحميلها');
 }
 
-if (!SUPABASE_PUBLISHABLE_KEY || SUPABASE_PUBLISHABLE_KEY.includes('PASTE_YOUR_')) {
-    console.warn('Supabase key is missing. Copy supabase.local.example.js to supabase.local.js and add the public anon/publishable key.');
-}
-
-window.marketSupabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY || 'missing-public-key');
-window.localDataFacade = window.marketSupabase;
+window.marketSupabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLIC_KEY);
 
 window.marketAuth = {
     async requireAdmin() {
@@ -30,9 +25,6 @@ window.marketAuth = {
 };
 
 function requireSupabase() {
-    if (!SUPABASE_PUBLISHABLE_KEY || SUPABASE_PUBLISHABLE_KEY.includes('PASTE_YOUR_')) {
-        throw new Error('مفتاح Supabase العام غير مضبوط. أضف المفتاح إلى supabase.local.js');
-    }
     return window.marketSupabase;
 }
 

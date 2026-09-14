@@ -1,48 +1,35 @@
 # سوبر ماركت حماصة
 
-واجهة متجر عربية تعمل مع Supabase: المنتجات والأقسام والطلبات والإعدادات محفوظة أونلاين، ولوحة الإدارة ترى نفس البيانات من أي جهاز.
+تطبيق Static يعمل على Cloudflare Pages، ومصدر البيانات الوحيد فيه هو Supabase.
 
-## التشغيل المحلي
+## النشر
 
-1. نفّذ محتوى `schema.sql` في Supabase SQL Editor للمشروع:
-   `https://hkpwuzlcargeokhnqrbo.supabase.co`
-2. أنشئ مستخدم الإدارة من Supabase Auth باستخدام Email/Password.
-3. أضف صفًا في `admin_users` بنفس `auth.users.id` مع `role = 'admin'` و`is_active = true`.
-4. انسخ `supabase.local.example.js` إلى `supabase.local.js` وضع فيه Public/Anon/Publishable Key فقط.
-5. شغّل الموقع عبر Live Server أو أي خادم ملفات محلي. لا تفتحه مباشرة بـ `file://` إذا منع المتصفح طلبات الشبكة.
+1. نفّذ [schema.sql](schema.sql) في Supabase SQL Editor.
+2. أنشئ حساب الإدارة في Supabase Auth باستخدام Email/Password.
+3. أضف صف المستخدم إلى `admin_users` مع `role = 'admin'` و`is_active = true`.
+4. ارفع جذر المستودع إلى Cloudflare Pages.
 
-`supabase.local.js` موجود في `.gitignore`. لا تضع Service Role Key أو كلمة مرور قاعدة البيانات في هذا الملف أو في الواجهة.
+إعدادات Cloudflare Pages:
 
-## الملفات المهمة
+- Framework preset: `None`
+- Build command: لا يوجد
+- Output directory: `/`
 
-- `supabase.js`: عميل Supabase وواجهات الكتالوج والطلبات والتتبع.
-- `schema.sql`: الجداول، RLS، RPC، والتحقق من انتقالات الحالة.
-- `index.html`: الكتالوج والسلة والـ checkout.
-- `admin.html`: Auth والمنتجات والأقسام والإعدادات.
-- `orders.html`: البحث والفلترة والتفاصيل والطباعة وتحديث الحالات.
-- `track-order.html`: التتبع باستخدام رقم الطلب ورقم الهاتف مع تحديث كل 10 ثوان.
-- `local-data.js`: كود محلي قديم غير محمّل في صفحات الإنتاج، وموجود فقط للرجوع أو الترحيل اليدوي.
+لا يحتاج المشروع إلى Node.js أو Backend أو أي ملف إعداد محلي. مفتاح Supabase الموجود في [supabase.js](supabase.js) هو Public/Publishable key فقط.
 
-## التدفق والأمان
+## Architecture
 
-- العميل يقرأ المنتجات والأقسام فقط.
-- إنشاء الطلب يتم عبر `create_order` داخل PostgreSQL؛ يعيد قراءة الأسعار الحالية، يحسب الإجماليات، ويحفظ `product_name` و`unit_price` في `order_items` داخل نفس المعاملة.
-- التتبع يمر عبر `track_order(order_code, phone)`، فلا يكفي معرفة رقم الطلب وحده.
-- الإدارة تدخل عبر Supabase Auth، ثم تُراجع عضويتها في `admin_users`.
-- قراءة الطلبات وتعديل المنتجات والأقسام متاحة للإدارة فقط عبر RLS.
-- `update_order_status` يفرض انتقالات الحالة داخل قاعدة البيانات، بما في ذلك منع الرجوع ومنع تغيير الحالات النهائية.
-- لا يوجد تكامل WhatsApp أو `wa.me` في مسار الطلب.
+- `index.html`: الكتالوج والسلة وإنشاء الطلب عبر `create_order`.
+- `admin.html`: Supabase Auth وإدارة المنتجات والأقسام والإعدادات.
+- `orders.html`: الطلبات والفلترة والتفاصيل والطباعة وتغيير الحالة.
+- `track-order.html`: تتبع آمن باستخدام رقم الطلب ورقم الهاتف.
+- `schema.sql`: الجداول وRLS وRPC والتحقق من انتقالات الحالة.
+- `supabase.js`: عميل Supabase وواجهات التطبيق.
 
-## الحالات
+## الأمان
 
-`new -> confirmed/cancelled -> preparing -> ready -> out_for_delivery -> delivered`
-
-`delivered` و`cancelled` نهائيتان.
-
-## QA المحلي
-
-تم تنفيذ فحص syntax على كل كتل JavaScript داخل صفحات HTML، وعلى `supabase.js` و`local-data.js`. اختبار الشبكة الفعلي يحتاج تنفيذ `schema.sql` ووضع المفتاح العام في `supabase.local.js`، ثم تجربة checkout وAuth والتتبع من متصفحين أو جهازين.
-
-## GitHub Pages
-
-لأن GitHub Pages لا يحقن `.env` في HTML ثابت، يجب توفير `supabase.local.js` أثناء النشر من Secret/Build Step خاص بالاستضافة، أو نقل المفتاح العام إلى إعداد build. المفتاح العام وحده مسموح في المتصفح، لكن Service Role Key ممنوع تمامًا.
+- لا توجد قاعدة بيانات أو بيانات تشغيلية داخل المتصفح.
+- لا توجد Service Role أو Secret keys في الواجهة.
+- قراءة الطلبات محمية بـ RLS للإدارة فقط.
+- إنشاء الطلب والتسعير يتمان داخل PostgreSQL في معاملة RPC.
+- تتبع الطلب لا يعرض بيانات بدون مطابقة رقم الطلب ورقم الهاتف.

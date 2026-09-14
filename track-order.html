@@ -83,7 +83,6 @@
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="./supabase.local.js"></script>
   <script src="./supabase.js"></script>
   <script>
     const ORDER_STATUS_LABELS = {
@@ -309,6 +308,22 @@
         result = await getOrderByQuery(searchValue, phone);
       } catch (error) {
         console.error('Tracking failed:', error);
+        const container = document.getElementById('trackingResult');
+        if (container) {
+          container.classList.remove('hidden');
+          container.innerHTML = `
+            <div class="bg-white border border-red-100 rounded-3xl shadow-lg p-6 sm:p-8 text-center">
+              <div class="mx-auto w-16 h-16 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center text-2xl mb-4">
+                <i class="fa-solid fa-cloud-arrow-down"></i>
+              </div>
+              <h3 class="text-xl font-black text-slate-900 mb-2">تعذر الاتصال بالخادم</h3>
+              <p class="text-sm text-slate-600 mb-5">تحقق من اتصال الإنترنت ثم حاول مرة أخرى.</p>
+              <button id="retryTrackingButton" class="bg-slate-900 hover:bg-slate-800 text-white px-5 py-3 rounded-2xl text-sm font-black">إعادة المحاولة</button>
+            </div>
+          `;
+          document.getElementById('retryTrackingButton').addEventListener('click', () => trackOrder(searchValue, phone));
+        }
+        return;
       }
       renderResult(result);
     }
@@ -335,8 +350,6 @@
 
       const params = new URLSearchParams(window.location.search);
       const orderParam = params.get('order');
-      const savedPhone = sessionStorage.getItem('hamasa_tracking_phone') || '';
-      if (savedPhone) phoneInput.value = savedPhone;
       if (orderParam) {
         input.value = orderParam;
         if (phoneInput.value.trim()) {

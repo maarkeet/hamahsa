@@ -1,5 +1,4 @@
 .env
 .env.local
-supabase.local.js
 *.secret.*
 *.key
