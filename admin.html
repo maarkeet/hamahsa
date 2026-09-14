@@ -482,9 +482,9 @@
             }
         ];
 
-        let products = JSON.parse(localStorage.getItem('al_saada_products')) || DEFAULT_PRODUCTS;
-        let categories = JSON.parse(localStorage.getItem('al_saada_categories')) || DEFAULT_CATEGORIES;
-        let storeSettings = JSON.parse(localStorage.getItem('al_saada_settings')) || DEFAULT_STORE_SETTINGS;
+        let products = [];
+        let categories = [];
+        let storeSettings = [];
         let isLoggedIn = sessionStorage.getItem('adminLoggedIn') === 'true';
 
         // Initialize
