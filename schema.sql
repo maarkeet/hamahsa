@@ -1,6 +1,8 @@
 -- Hamasa Supermarket: Supabase schema
 create extension if not exists pgcrypto;
 
+create sequence if not exists public.order_code_seq start with 1000;
+
 do $$ begin
   create type public.order_status as enum ('new', 'confirmed', 'preparing', 'ready', 'out_for_delivery', 'delivered', 'cancelled');
 exception when duplicate_object then null;
@@ -63,6 +65,13 @@ create table if not exists public.order_items (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.order_status_history (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references public.orders(id) on delete cascade,
+  status public.order_status not null,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists public.settings (
   id uuid primary key default gen_random_uuid(),
   key text not null unique,
@@ -94,6 +103,7 @@ create index if not exists products_available_idx on public.products(available);
 create index if not exists orders_status_idx on public.orders(status);
 create index if not exists orders_created_at_idx on public.orders(created_at desc);
 create index if not exists order_items_order_idx on public.order_items(order_id);
+create index if not exists order_status_history_order_idx on public.order_status_history(order_id, created_at);
 
 create or replace function public.is_admin_user()
 returns boolean language sql stable security definer set search_path = public
@@ -137,6 +147,7 @@ declare
     from public.store_settings as store_config
     where store_config.id = 1
   ), 0);
+  v_order_code text;
 begin
   if nullif(trim(p_customer_name), '') is null or nullif(trim(p_phone), '') is null or nullif(trim(p_address), '') is null then
     raise exception 'بيانات العميل غير مكتملة';
@@ -156,10 +167,21 @@ begin
     v_subtotal := v_subtotal + v_item_total;
   end loop;
 
-  insert into public.orders (customer_name, phone, address, subtotal, delivery_fee, total, payment_method, notes)
-  values (trim(p_customer_name), trim(p_phone), trim(p_address), v_subtotal, v_delivery_fee,
+  loop
+    v_order_code := 'HM-' || nextval('public.order_code_seq')::text;
+    exit when not exists (
+      select 1 from public.orders as existing_order
+      where existing_order.order_code = v_order_code
+    );
+  end loop;
+
+  insert into public.orders (order_code, customer_name, phone, address, subtotal, delivery_fee, total, payment_method, notes)
+  values (v_order_code, trim(p_customer_name), trim(p_phone), trim(p_address), v_subtotal, v_delivery_fee,
           v_subtotal + v_delivery_fee, coalesce(nullif(p_payment_method, ''), 'cash'), nullif(trim(p_notes), ''))
-  returning orders.* into v_order;
+  returning * into v_order;
+
+  insert into public.order_status_history (order_id, status)
+  values (v_order.id, v_order.status);
 
   for v_item in select item_value from jsonb_array_elements(p_items) as elements(item_value) loop
     select product_row.* into v_product
@@ -185,6 +207,9 @@ as $$
     'subtotal', o.subtotal, 'delivery_fee', o.delivery_fee, 'total', o.total,
     'payment_method', o.payment_method, 'status', o.status,
     'created_at', o.created_at, 'updated_at', o.updated_at,
+    'status_history', coalesce((select json_agg(history_row order by history_row.created_at)
+      from public.order_status_history as history_row
+      where history_row.order_id = o.id), '[]'::json),
     'items', coalesce((select json_agg(oi order by oi.created_at) from public.order_items oi where oi.order_id = o.id), '[]'::json)
   ) from public.orders o where upper(o.order_code) = upper(trim(p_order_code)) and o.phone = trim(p_phone);
 $$;
@@ -200,6 +225,8 @@ begin
   allowed := (current_order.status, p_next_status) in (('new','confirmed'),('new','cancelled'),('confirmed','preparing'),('confirmed','cancelled'),('preparing','ready'),('ready','out_for_delivery'),('out_for_delivery','delivered'));
   if not allowed then raise exception 'انتقال حالة الطلب غير مسموح'; end if;
   update public.orders set status = p_next_status where id = p_order_id returning * into current_order;
+  insert into public.order_status_history (order_id, status)
+  values (current_order.id, current_order.status);
   return current_order;
 end; $$;
 
@@ -207,6 +234,7 @@ alter table public.categories enable row level security;
 alter table public.products enable row level security;
 alter table public.orders enable row level security;
 alter table public.order_items enable row level security;
+alter table public.order_status_history enable row level security;
 alter table public.settings enable row level security;
 alter table public.store_settings enable row level security;
 alter table public.admin_users enable row level security;
@@ -223,6 +251,8 @@ drop policy if exists orders_admin_read on public.orders;
 create policy orders_admin_read on public.orders for select to authenticated using (public.is_admin_user());
 drop policy if exists order_items_admin_read on public.order_items;
 create policy order_items_admin_read on public.order_items for select to authenticated using (public.is_admin_user());
+drop policy if exists order_status_history_admin_read on public.order_status_history;
+create policy order_status_history_admin_read on public.order_status_history for select to authenticated using (public.is_admin_user());
 drop policy if exists settings_public_read on public.settings;
 create policy settings_public_read on public.settings for select to anon, authenticated using (true);
 drop policy if exists settings_admin_write on public.settings;
@@ -234,10 +264,10 @@ create policy store_settings_admin_write on public.store_settings for all to aut
 drop policy if exists admin_users_self_read on public.admin_users;
 create policy admin_users_self_read on public.admin_users for select to authenticated using (user_id = auth.uid() or public.is_admin_user());
 
-revoke all on public.orders, public.order_items from anon, authenticated;
+revoke all on public.orders, public.order_items, public.order_status_history from anon, authenticated;
 grant select on public.categories, public.products, public.settings, public.store_settings to anon, authenticated;
 grant select, insert, update, delete on public.categories, public.products, public.settings, public.store_settings to authenticated;
-grant select on public.orders, public.order_items to authenticated;
+grant select on public.orders, public.order_items, public.order_status_history to authenticated;
 grant execute on function public.create_order(text,text,text,jsonb,text,text) to anon, authenticated;
 grant execute on function public.track_order(text,text) to anon, authenticated;
 grant execute on function public.update_order_status(uuid,public.order_status) to authenticated;

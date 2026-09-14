@@ -352,19 +352,6 @@
                 </div>
             </div>
 
-            <!-- Orders Management -->
-            <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 mt-8">
-                <div class="flex items-center justify-between mb-6">
-                    <h3 class="text-lg font-black text-slate-900 flex items-center gap-2">
-                        <i class="fa-solid fa-receipt text-brand-600"></i>
-                        إدارة الطلبات المحلية
-                    </h3>
-                    <div class="text-xs text-slate-500">الإدارة المحلية فقط — لا يوجد Backend</div>
-                </div>
-                <div id="ordersList" class="space-y-4 max-h-[700px] overflow-y-auto">
-                    <!-- Injected via JS -->
-                </div>
-            </div>
         </main>
     </div>
 
@@ -394,7 +381,6 @@
     let products = [];
     let categories = [];
     let storeSettings = {};
-    let adminOrders = [];
     let editingProductId = null;
 
     // =========================================================
@@ -863,8 +849,6 @@
             storeSettings = { id: 1, name: '', whatsapp: '', deliveryFee: 0 };
         }
 
-        adminOrders = await window.marketApi.getOrders();
-
         console.log(
             'تم تحميل البيانات من Supabase بنجاح'
         );
@@ -899,106 +883,9 @@
 
         renderCategoriesList();
 
-        renderOrdersList();
-
         populateCategoriesSelect();
 
         updateStats();
-    }
-
-    function getOrderStatusLabel(status) {
-        const labels = {
-            new: 'جديد',
-            confirmed: 'مؤكد',
-            preparing: 'قيد التحضير',
-            ready: 'جاهز',
-            out_for_delivery: 'خارج للتوصيل',
-            delivered: 'تم التوصيل',
-            cancelled: 'ملغى'
-        };
-
-        return labels[status] || 'غير محدد';
-    }
-
-    function renderOrdersList() {
-        const orders = adminOrders;
-        const container = document.getElementById('ordersList');
-
-        if (!container) return;
-
-        if (!orders.length) {
-            container.innerHTML = `
-                <div class="text-center py-8">
-                    <div class="w-16 h-16 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-3 text-2xl">
-                        <i class="fa-solid fa-box-open"></i>
-                    </div>
-                    <p class="text-sm text-slate-500">لا توجد طلبات محلية حتى الآن</p>
-                </div>
-            `;
-            return;
-        }
-
-        container.innerHTML = orders.map((order) => `
-            <div class="border border-slate-200 rounded-2xl p-4 bg-slate-50">
-                <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4">
-                    <div>
-                        <h4 class="font-black text-slate-900 text-sm">طلب #${escapeHTML(order.order_code || order.id)}</h4>
-                        <p class="text-xs text-slate-500 mt-1">${new Date(order.created_at).toLocaleString('ar-EG')}</p>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span class="text-[10px] font-bold bg-brand-100 text-brand-700 px-2 py-1 rounded-full">${escapeHTML(order.payment_method || 'cash')}</span>
-                        <select data-order-id="${order.id}" onchange="updateOrderStatusFromAdmin(this)" class="px-2 py-2 border border-slate-200 rounded-xl text-xs font-bold bg-white focus:outline-none focus:ring-2 focus:ring-brand-500">
-                            <option value="new" ${order.status === 'new' ? 'selected' : ''}>جديد</option>
-                            <option value="confirmed" ${order.status === 'confirmed' ? 'selected' : ''}>مؤكد</option>
-                            <option value="preparing" ${order.status === 'preparing' ? 'selected' : ''}>قيد التحضير</option>
-                            <option value="ready" ${order.status === 'ready' ? 'selected' : ''}>جاهز</option>
-                            <option value="out_for_delivery" ${order.status === 'out_for_delivery' ? 'selected' : ''}>خارج للتوصيل</option>
-                            <option value="delivered" ${order.status === 'delivered' ? 'selected' : ''}>تم التوصيل</option>
-                            <option value="cancelled" ${order.status === 'cancelled' ? 'selected' : ''}>ملغى</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-slate-600">
-                    <div><span class="font-bold text-slate-700">اسم العميل:</span> ${escapeHTML(order.customer_name || '-')}</div>
-                    <div><span class="font-bold text-slate-700">الهاتف:</span> ${escapeHTML(order.phone || '-')}</div>
-                    <div class="md:col-span-2"><span class="font-bold text-slate-700">العنوان:</span> ${escapeHTML(order.address || '-')}</div>
-                    <div class="md:col-span-2"><span class="font-bold text-slate-700">الملاحظات:</span> ${escapeHTML(order.notes || 'لا توجد ملاحظات')}</div>
-                </div>
-
-                <div class="mt-4 rounded-xl bg-white border border-slate-200 p-3">
-                    <div class="font-bold text-xs text-slate-700 mb-2">المنتجات:</div>
-                    <div class="space-y-2">
-                        ${(order.items || []).map((item) => `
-                            <div class="flex items-center justify-between text-xs text-slate-600">
-                                <span>${escapeHTML(item.product_name || 'منتج')} × ${item.quantity || 0}</span>
-                                <span class="font-bold text-slate-800">${Number(item.total ?? item.line_total ?? 0).toLocaleString('ar-EG')} ج.م</span>
-                            </div>
-                        `).join('') || '<div class="text-xs text-slate-500">لا توجد منتجات</div>'}
-                    </div>
-                </div>
-
-                <div class="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs font-bold text-slate-700">
-                    <span>الحالة: <span class="text-brand-700">${escapeHTML(getOrderStatusLabel(order.status))}</span></span>
-                    <span>الإجمالي: <span class="text-brand-700">${Number(order.total || 0).toLocaleString('ar-EG')} ج.م</span></span>
-                </div>
-            </div>
-        `).join('');
-    }
-
-    async function updateOrderStatusFromAdmin(select) {
-        const id = select.dataset.orderId;
-        const status = select.value;
-        try {
-            await window.marketApi.updateOrderStatus(id, status);
-            adminOrders = await window.marketApi.getOrders();
-            renderOrdersList();
-            showAlert('تم تحديث الحالة', `تم تحديث حالة الطلب إلى ${getOrderStatusLabel(status)}`, 'fa-clipboard-check', 'bg-brand-100 text-brand-600');
-        } catch (error) {
-            await loadDataFromSupabase();
-            renderAdminUI();
-            showAlert('تعذر تحديث الحالة', error.message, 'fa-xmark', 'bg-red-100 text-red-600');
-        }
     }
 
     // =========================================================

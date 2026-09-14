@@ -90,6 +90,8 @@
       'out_for_delivery',
       'delivered'
     ];
+    let trackedOrder = null;
+    let trackingInterval = null;
 
     function escapeHtml(value = '') {
       return String(value)
@@ -117,6 +119,39 @@
 
     function formatCurrency(value) {
       return `${Number(value || 0).toLocaleString('ar-EG')} ج.م`;
+    }
+
+    function getStatusTimestamp(order, status) {
+      const history = Array.isArray(order.status_history) ? order.status_history : [];
+      const entry = history.find((item) => item.status === status);
+      if (entry && entry.created_at) return entry.created_at;
+      if (status === 'new') return order.created_at;
+      if (status === order.status) return order.updated_at;
+      return null;
+    }
+
+    function formatRelativeTime(timestamp) {
+      if (!timestamp) return 'الوقت غير متاح';
+      const elapsedSeconds = Math.max(0, Math.floor((Date.now() - new Date(timestamp).getTime()) / 1000));
+      if (elapsedSeconds < 60) return 'منذ أقل من دقيقة';
+      const minutes = Math.floor(elapsedSeconds / 60);
+      if (minutes === 1) return 'منذ دقيقة';
+      if (minutes === 2) return 'منذ دقيقتين';
+      if (minutes < 60) return `منذ ${minutes} دقيقة`;
+      const hours = Math.floor(minutes / 60);
+      if (hours === 1) return 'منذ ساعة';
+      if (hours === 2) return 'منذ ساعتين';
+      if (hours < 24) return `منذ ${hours} ساعات`;
+      const days = Math.floor(hours / 24);
+      if (days === 1) return 'منذ يوم';
+      if (days === 2) return 'منذ يومين';
+      return `منذ ${days} أيام`;
+    }
+
+    function updateRelativeTimes(order) {
+      document.querySelectorAll('[data-status-time]').forEach((element) => {
+        element.textContent = formatRelativeTime(getStatusTimestamp(order, element.dataset.statusTime));
+      });
     }
 
     async function getOrderByQuery(searchValue, phone) {
@@ -150,6 +185,7 @@
         const isActive = state === 'active';
         const isPending = state === 'pending';
 
+        const timestamp = getStatusTimestamp(order, stage.key);
         return `
           <div class="timeline-item relative pl-8 pb-7 last:pb-0">
             <div class="absolute right-0 top-0 flex items-center justify-center ${isCompleted ? 'bg-emerald-500 text-white' : isActive ? 'bg-brand-500 text-white' : 'bg-slate-200 text-slate-500'} status-node">
@@ -160,6 +196,7 @@
                 <span class="font-black text-slate-900 text-sm">${stage.label}</span>
                 ${isCompleted ? '<span class="status-pill bg-emerald-100 text-emerald-700">مكتمل</span>' : isActive ? '<span class="status-pill bg-brand-100 text-brand-700">الحالة الحالية</span>' : '<span class="status-pill bg-slate-100 text-slate-500">قادم</span>'}
               </div>
+              <span data-status-time="${stage.key}" class="block mt-1 text-xs text-slate-500">${formatRelativeTime(timestamp)}</span>
             </div>
           </div>
         `;
@@ -185,6 +222,7 @@
             </div>
             <h3 class="text-xl font-black">❌ تم إلغاء الطلب</h3>
           </div>
+          <p data-status-time="cancelled" class="text-xs text-red-600 mb-3">${formatRelativeTime(getStatusTimestamp(order, 'cancelled'))}</p>
           <p class="text-sm text-red-700 leading-relaxed">هذا الطلب تم إلغاؤه ولم يعد قيد التنفيذ. إذا كنت تحتاج إلى مساعدة إضافية، يمكنك التواصل مع الإدارة مباشرة.</p>
         </div>
       `;
@@ -281,9 +319,6 @@
               <p class="font-extrabold text-slate-800 mb-1">العنوان</p>
               <p>${escapeHtml(order.address || '-')}</p>
             </div>
-            <button id="refreshButton" class="mt-5 w-full bg-slate-900 hover:bg-slate-800 text-white py-3 rounded-2xl text-sm font-black transition-all">
-              <i class="fa-solid fa-arrows-rotate ml-2"></i>🔄 تحديث حالة الطلب
-            </button>
           </aside>
         </div>
       `;
@@ -312,6 +347,17 @@
         }
         return;
       }
+      if (!result) {
+        trackedOrder = null;
+        renderResult(null);
+        return;
+      }
+      if (trackedOrder && trackedOrder.status === result.status) {
+        trackedOrder = result;
+        updateRelativeTimes(result);
+        return;
+      }
+      trackedOrder = result;
       renderResult(result);
     }
 
@@ -360,25 +406,20 @@
         setTimeout(() => trackOrder(orderValue, phoneValue), 250);
       });
 
-      result.addEventListener('click', (event) => {
-        const refreshButton = event.target.closest('#refreshButton');
-        if (!refreshButton) return;
-        const current = input.value.trim();
-        const phone = phoneInput.value.trim();
-        if (current && phone) {
-          showLoadingState();
-          setTimeout(() => trackOrder(current, phone), 250);
-        }
-      });
-
-      setInterval(() => {
+      trackingInterval = setInterval(() => {
         const current = input.value.trim();
         const phone = phoneInput.value.trim();
         if (current && phone) {
           trackOrder(current, phone);
+        } else if (trackedOrder) {
+          updateRelativeTimes(trackedOrder);
         }
-      }, 10000);
+      }, 5000);
     }
+
+    window.addEventListener('pagehide', () => {
+      if (trackingInterval) clearInterval(trackingInterval);
+    });
 
     document.addEventListener('DOMContentLoaded', startup);
   </script>
