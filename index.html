@@ -470,11 +470,11 @@
                   ${product.oldPrice && product.oldPrice > product.price ? `<span class="text-xs text-slate-400 line-through">${Number(product.oldPrice).toLocaleString('ar-EG')} ج.م</span>` : ''}
                 </div>
                 <div>
-                  ${qty === 0 ? `<button onclick="addToCart(${JSON.stringify(product.id)})" class="w-10 h-10 rounded-2xl bg-brand-50 hover:bg-brand-600 text-brand-600 hover:text-white flex items-center justify-center transition-all shadow-sm"><i class="fa-solid fa-plus text-sm"></i></button>` : `
+                  ${qty === 0 ? `<button onclick="addToCart('${escapeHTML(product.id)}')" class="w-10 h-10 rounded-2xl bg-brand-50 hover:bg-brand-600 text-brand-600 hover:text-white flex items-center justify-center transition-all shadow-sm"><i class="fa-solid fa-plus text-sm"></i></button>` : `
                     <div class="flex items-center gap-1.5 bg-brand-50 border border-brand-200 rounded-2xl p-1">
-                      <button onclick="updateQty(${JSON.stringify(product.id)}, ${qty - 1})" class="w-7 h-7 rounded-xl bg-white text-brand-700 hover:bg-brand-600 hover:text-white flex items-center justify-center text-xs transition-all"><i class="fa-solid fa-minus"></i></button>
+                      <button onclick="updateQty('${escapeHTML(product.id)}', ${qty - 1})" class="w-7 h-7 rounded-xl bg-white text-brand-700 hover:bg-brand-600 hover:text-white flex items-center justify-center text-xs transition-all"><i class="fa-solid fa-minus"></i></button>
                       <span class="text-xs font-black text-slate-800 px-1.5">${qty}</span>
-                      <button onclick="updateQty(${JSON.stringify(product.id)}, ${qty + 1})" class="w-7 h-7 rounded-xl bg-brand-600 text-white hover:bg-brand-700 flex items-center justify-center text-xs transition-all"><i class="fa-solid fa-plus"></i></button>
+                      <button onclick="updateQty('${escapeHTML(product.id)}', ${qty + 1})" class="w-7 h-7 rounded-xl bg-brand-600 text-white hover:bg-brand-700 flex items-center justify-center text-xs transition-all"><i class="fa-solid fa-plus"></i></button>
                     </div>
                   `}
                 </div>
@@ -565,14 +565,14 @@
             <p class="text-xs font-bold text-brand-600 mt-0.5">${Number(item.price || 0)} ج.م <span class="text-[10px] text-slate-400">/ ${escapeHTML(item.unit || 'قطعة')}</span></p>
             <div class="flex items-center justify-between mt-2">
               <div class="flex items-center gap-1.5 bg-slate-100 rounded-xl p-1">
-                <button onclick="updateQty(${JSON.stringify(item.id)}, ${Number(item.qty || 0) - 1})" class="w-6 h-6 bg-white rounded-lg text-slate-700 flex items-center justify-center text-xs shadow-sm">-</button>
+                <button onclick="updateQty('${escapeHTML(item.id)}', ${Number(item.qty || 0) - 1})" class="w-6 h-6 bg-white rounded-lg text-slate-700 flex items-center justify-center text-xs shadow-sm">-</button>
                 <span class="text-xs font-black px-1.5 text-slate-800">${Number(item.qty || 0)}</span>
-                <button onclick="updateQty(${JSON.stringify(item.id)}, ${Number(item.qty || 0) + 1})" class="w-6 h-6 bg-brand-600 text-white rounded-lg flex items-center justify-center text-xs shadow-sm">+</button>
+                <button onclick="updateQty('${escapeHTML(item.id)}', ${Number(item.qty || 0) + 1})" class="w-6 h-6 bg-brand-600 text-white rounded-lg flex items-center justify-center text-xs shadow-sm">+</button>
               </div>
               <span class="text-xs font-black text-slate-900">${Number(item.price || 0) * Number(item.qty || 0)} ج.م</span>
             </div>
           </div>
-          <button onclick="updateQty(${JSON.stringify(item.id)}, 0)" class="text-slate-300 hover:text-red-500 p-2 transition-colors"><i class="fa-solid fa-trash-can text-sm"></i></button>
+          <button onclick="updateQty('${escapeHTML(item.id)}', 0)" class="text-slate-300 hover:text-red-500 p-2 transition-colors"><i class="fa-solid fa-trash-can text-sm"></i></button>
         </div>
       `).join('');
     }
