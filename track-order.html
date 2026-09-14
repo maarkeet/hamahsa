@@ -130,8 +130,8 @@
       return null;
     }
 
-    function formatRelativeTime(timestamp) {
-      if (!timestamp) return 'الوقت غير متاح';
+    function formatRelativeTime(timestamp, isFuture = false) {
+      if (!timestamp) return isFuture ? 'في انتظار تحديث الحالة' : 'لم يُسجّل وقتها';
       const elapsedSeconds = Math.max(0, Math.floor((Date.now() - new Date(timestamp).getTime()) / 1000));
       if (elapsedSeconds < 60) return 'منذ أقل من دقيقة';
       const minutes = Math.floor(elapsedSeconds / 60);
@@ -150,8 +150,13 @@
 
     function updateRelativeTimes(order) {
       document.querySelectorAll('[data-status-time]').forEach((element) => {
-        element.textContent = formatRelativeTime(getStatusTimestamp(order, element.dataset.statusTime));
+        const timestamp = getStatusTimestamp(order, element.dataset.statusTime);
+        element.textContent = formatRelativeTime(timestamp, element.dataset.future === 'true');
       });
+      const currentTime = document.querySelector('[data-current-status-time]');
+      if (currentTime) {
+        currentTime.textContent = formatRelativeTime(getStatusTimestamp(order, order.status));
+      }
     }
 
     async function getOrderByQuery(searchValue, phone) {
@@ -160,7 +165,11 @@
     }
 
     function getStepState(step, currentStatus) {
-      if (currentStatus === 'cancelled') return 'pending';
+      const history = Array.isArray(trackedOrder?.status_history) ? trackedOrder.status_history : [];
+      if (currentStatus === 'cancelled') {
+        if (step === 'cancelled') return 'active';
+        return history.some((item) => item.status === step) || step === 'new' ? 'completed' : 'pending';
+      }
       const currentIndex = ORDER_STATUS_TIMELINE.indexOf(currentStatus);
       const stepIndex = ORDER_STATUS_TIMELINE.indexOf(step);
       if (stepIndex < currentIndex) return 'completed';
@@ -178,6 +187,10 @@
         { key: 'out_for_delivery', label: 'خرج الطلب للتوصيل', icon: 'fa-truck' },
         { key: 'delivered', label: 'تم تسليم الطلب', icon: 'fa-gift' }
       ];
+      if (currentStatus === 'cancelled') {
+        stages.splice(0, stages.length, ...stages.filter((stage) => getStepState(stage.key, currentStatus) === 'completed'));
+        stages.push({ key: 'cancelled', label: 'تم إلغاء الطلب', icon: 'fa-circle-xmark' });
+      }
 
       const items = stages.map((stage) => {
         const state = getStepState(stage.key, currentStatus);
@@ -186,6 +199,7 @@
         const isPending = state === 'pending';
 
         const timestamp = getStatusTimestamp(order, stage.key);
+        const isFuture = state === 'pending';
         return `
           <div class="timeline-item relative pl-8 pb-7 last:pb-0">
             <div class="absolute right-0 top-0 flex items-center justify-center ${isCompleted ? 'bg-emerald-500 text-white' : isActive ? 'bg-brand-500 text-white' : 'bg-slate-200 text-slate-500'} status-node">
@@ -196,7 +210,8 @@
                 <span class="font-black text-slate-900 text-sm">${stage.label}</span>
                 ${isCompleted ? '<span class="status-pill bg-emerald-100 text-emerald-700">مكتمل</span>' : isActive ? '<span class="status-pill bg-brand-100 text-brand-700">الحالة الحالية</span>' : '<span class="status-pill bg-slate-100 text-slate-500">قادم</span>'}
               </div>
-              <span data-status-time="${stage.key}" class="block mt-1 text-xs text-slate-500">${formatRelativeTime(timestamp)}</span>
+              <span class="block mt-1 text-xs text-slate-500">${timestamp ? formatDateTime(timestamp) : 'قادم'}</span>
+              <span data-status-time="${stage.key}" data-future="${isFuture}" class="block text-xs text-slate-500">${formatRelativeTime(timestamp, isFuture)}</span>
             </div>
           </div>
         `;
@@ -206,24 +221,12 @@
         <div class="bg-white border border-slate-200 rounded-3xl shadow-lg p-5 sm:p-6">
           <div class="flex items-center justify-between gap-3 mb-6">
             <h3 class="text-xl font-black text-slate-900">حالة طلبك</h3>
-            <span class="status-pill ${currentStatus === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-brand-100 text-brand-700'}">${escapeHtml(ORDER_STATUS_LABELS[currentStatus] || currentStatus)}</span>
+            <div class="text-left">
+              <span class="status-pill ${currentStatus === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-brand-100 text-brand-700'}">${escapeHtml(ORDER_STATUS_LABELS[currentStatus] || currentStatus)}</span>
+              <span data-current-status-time class="block mt-1 text-xs text-slate-500">${formatRelativeTime(getStatusTimestamp(order, currentStatus))}</span>
+            </div>
           </div>
           <div class="space-y-0">${items}</div>
-        </div>
-      `;
-    }
-
-    function renderCancelledState(order) {
-      return `
-        <div class="bg-red-50 border border-red-200 rounded-3xl shadow-lg p-6">
-          <div class="flex items-center gap-3 text-red-700 mb-3">
-            <div class="w-12 h-12 rounded-2xl bg-red-100 flex items-center justify-center text-xl">
-              <i class="fa-solid fa-circle-xmark"></i>
-            </div>
-            <h3 class="text-xl font-black">❌ تم إلغاء الطلب</h3>
-          </div>
-          <p data-status-time="cancelled" class="text-xs text-red-600 mb-3">${formatRelativeTime(getStatusTimestamp(order, 'cancelled'))}</p>
-          <p class="text-sm text-red-700 leading-relaxed">هذا الطلب تم إلغاؤه ولم يعد قيد التنفيذ. إذا كنت تحتاج إلى مساعدة إضافية، يمكنك التواصل مع الإدارة مباشرة.</p>
         </div>
       `;
     }
@@ -296,7 +299,7 @@
               </div>
             </div>
 
-            ${order.status === 'cancelled' ? renderCancelledState(order) : renderTimeline(order)}
+            ${renderTimeline(order)}
           </div>
 
           <aside class="bg-white border border-slate-200 rounded-3xl shadow-lg p-5 sm:p-6 h-fit">
@@ -352,7 +355,9 @@
         renderResult(null);
         return;
       }
-      if (trackedOrder && trackedOrder.status === result.status) {
+      const previousHistory = JSON.stringify(trackedOrder?.status_history || []);
+      const nextHistory = JSON.stringify(result.status_history || []);
+      if (trackedOrder && trackedOrder.status === result.status && previousHistory === nextHistory) {
         trackedOrder = result;
         updateRelativeTimes(result);
         return;

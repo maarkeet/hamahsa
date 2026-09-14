@@ -222,6 +222,9 @@ begin
   if not public.is_admin_user() then raise exception 'غير مصرح'; end if;
   select * into current_order from public.orders where id = p_order_id for update;
   if not found then raise exception 'الطلب غير موجود'; end if;
+  if current_order.status = p_next_status then
+    return current_order;
+  end if;
   allowed := (current_order.status, p_next_status) in (('new','confirmed'),('new','cancelled'),('confirmed','preparing'),('confirmed','cancelled'),('preparing','ready'),('ready','out_for_delivery'),('out_for_delivery','delivered'));
   if not allowed then raise exception 'انتقال حالة الطلب غير مسموح'; end if;
   update public.orders set status = p_next_status where id = p_order_id returning * into current_order;
