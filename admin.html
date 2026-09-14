@@ -62,6 +62,19 @@
             
             <form onsubmit="handleLogin(event)" class="space-y-4">
                 <div>
+    <label class="block text-xs font-bold text-slate-700 mb-2">
+        البريد الإلكتروني
+    </label>
+
+    <input
+        type="email"
+        id="adminEmail"
+        required
+        class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+        placeholder="admin@example.com"
+    >
+</div>
+                <div>
                     <label class="block text-xs font-bold text-slate-700 mb-2">كلمة المرور</label>
                     <div class="relative">
                         <input type="password" id="adminPassword" required 
@@ -381,8 +394,7 @@
 
 <script>
         
-        // Admin Password (CHANGE THIS!)
-        const ADMIN_PASSWORD = "admin123";
+    
 
         // Default Store Settings
         const DEFAULT_STORE_SETTINGS = {
@@ -505,15 +517,17 @@
     }
 
     products = productsData.map(p => ({
-        id: p.id,
-        name: p.name,
-        price: Number(p.price),
-        oldPrice: p.old_price ? Number(p.old_price) : 0,
-        hasDiscount: p.has_discount || false,
-        category: p.category,
-        unit: p.unit || '',
-        image: p.image_url || ''
-    }));
+    id: p.id,
+    name: p.name,
+    price: Number(p.price),
+    oldPrice: p.old_price ? Number(p.old_price) : 0,
+    hasDiscount: p.has_discount || false,
+    category: p.category,
+    unit: p.unit || '',
+    image: p.image_url || '',
+    created_at: p.created_at,
+    updated_at: p.updated_at
+}));
 
 
     // =========================
@@ -531,10 +545,11 @@
     }
 
     categories = categoriesData.map(c => ({
-        id: c.id,
-        name: c.name,
-        icon: c.icon || 'fa-tag'
-    }));
+    id: c.id,
+    name: c.name,
+    icon: c.icon || 'fa-tag',
+    order: c.display_order || 0
+}));
 
 
     // =========================
@@ -581,40 +596,123 @@
     );
 }
 }
-        let isLoggedIn = sessionStorage.getItem('adminLoggedIn') === 'true';
+        
 
         // Initialize
-        document.addEventListener('DOMContentLoaded', () => {
-            if (isLoggedIn) {
-                showDashboard();
-            } else {
-                showLogin();
-            }
-            populateCategoriesSelect();
-            loadStoreSettings();
-            renderCategoriesList();
-            updateStats();
-        });
+        document.addEventListener('DOMContentLoaded', async () => {
+    await checkAdminSession();
+});
+    async function checkAdminSession() {
+
+    try {
+
+        const { data: { session } } =
+            await marketSupabase.auth.getSession();
+
+        if (!session) {
+            showLogin();
+            return;
+        }
+
+        const { data: adminUser, error } =
+            await marketSupabase
+                .from('admin_users')
+                .select('user_id')
+                .eq('user_id', session.user.id)
+                .maybeSingle();
+
+        if (error) {
+            throw error;
+        }
+
+        if (!adminUser) {
+            await marketSupabase.auth.signOut();
+            showLogin();
+            return;
+        }
+
+        isLoggedIn = true;
+
+        showDashboard();
+
+        await loadDataFromSupabase();
+
+    } catch (error) {
+
+        console.error('Session Error:', error);
+
+        await marketSupabase.auth.signOut();
+
+        showLogin();
+    }
+}
 
         // Login Functions
-        function handleLogin(e) {
-            e.preventDefault();
-            const password = document.getElementById('adminPassword').value;
-            
-            if (password === ADMIN_PASSWORD) {
-                isLoggedIn = true;
-                sessionStorage.setItem('adminLoggedIn', 'true');
-                showDashboard();
-            } else {
-                showAlert('خطأ', 'كلمة المرور غير صحيحة!', 'fa-xmark', 'bg-red-100 text-red-600');
-            }
+      async function handleLogin(e) {
+    e.preventDefault();
+
+    const email = document.getElementById('adminEmail').value.trim();
+    const password = document.getElementById('adminPassword').value;
+
+    try {
+
+        const { data, error } =
+            await marketSupabase.auth.signInWithPassword({
+                email: email,
+                password: password
+            });
+
+        if (error) {
+            throw error;
         }
 
-        function handleLogout() {
-            isLoggedIn = false;
-            sessionStorage.removeItem('adminLoggedIn');
-            showLogin();
+        if (!data.user) {
+            throw new Error('لم يتم العثور على حساب المستخدم');
         }
+
+        // التأكد إن المستخدم Admin
+        const { data: adminUser, error: adminError } =
+            await marketSupabase
+                .from('admin_users')
+                .select('user_id')
+                .eq('user_id', data.user.id)
+                .maybeSingle();
+
+        if (adminError) {
+            throw adminError;
+        }
+
+        if (!adminUser) {
+            await marketSupabase.auth.signOut();
+            throw new Error('هذا الحساب ليس لديه صلاحية الدخول للوحة التحكم');
+        }
+
+        isLoggedIn = true;
+
+        showDashboard();
+
+        await loadDataFromSupabase();
+
+    } catch (error) {
+
+        console.error('Login Error:', error);
+
+        showAlert(
+            'خطأ في تسجيل الدخول',
+            error.message || 'البريد الإلكتروني أو كلمة المرور غير صحيحة',
+            'fa-xmark',
+            'bg-red-100 text-red-600'
+        );
+    }
+}
+
+       async function handleLogout() {
+    await marketSupabase.auth.signOut();
+
+    isLoggedIn = false;
+
+    showLogin();
+}
 
         function showLogin() {
             document.getElementById('loginScreen').classList.remove('hidden');
@@ -622,13 +720,15 @@
         }
 
         function showDashboard() {
-            document.getElementById('loginScreen').classList.add('hidden');
-            document.getElementById('adminDashboard').classList.remove('hidden');
-            loadStoreSettings();
-            renderAdminProductsList();
-            renderCategoriesList();
-            updateStats();
-        }
+    document.getElementById('loginScreen').classList.add('hidden');
+    document.getElementById('adminDashboard').classList.remove('hidden');
+
+    loadStoreSettings();
+    renderAdminProductsList();
+    renderCategoriesList();
+    populateCategoriesSelect();
+    updateStats();
+}
 
         function togglePassword() {
             const input = document.getElementById('adminPassword');
@@ -860,7 +960,30 @@
         function updateStats() {
             document.getElementById('totalProducts').innerText = products.length;
             document.getElementById('discountedProducts').innerText = products.filter(p => p.hasDiscount).length;
-            document.getElementById('totalCategories').innerText = DEFAULT_CATEGORIES.length - 1; // Exclude 'all'
+            function updateStats() {
+
+    document.getElementById('totalProducts').innerText =
+        products.length;
+
+    document.getElementById('discountedProducts').innerText =
+        products.filter(p => p.hasDiscount).length;
+
+    document.getElementById('totalCategories').innerText =
+        categories.filter(c => c.id !== 'all').length;
+
+    const latestProduct = products
+        .map(p => p.created_at)
+        .filter(Boolean)
+        .sort()
+        .pop();
+
+    if (latestProduct) {
+        document.getElementById('lastUpdate').innerText =
+            new Date(latestProduct).toLocaleDateString('ar-EG');
+    } else {
+        document.getElementById('lastUpdate').innerText = '-';
+    }
+}
             
             const lastUpdate = localStorage.getItem('al_saada_last_update');
             document.getElementById('lastUpdate').innerText = lastUpdate ? new Date(lastUpdate).toLocaleDateString('ar-EG') : '-';
@@ -986,9 +1109,7 @@
         }
 
         function saveData() {
-            localStorage.setItem('al_saada_products', JSON.stringify(products));
-            localStorage.setItem('al_saada_categories', JSON.stringify(categories));
-            localStorage.setItem('al_saada_settings', JSON.stringify(storeSettings));
+        
             localStorage.setItem('al_saada_last_update', new Date().toISOString());
         }
 
@@ -1075,7 +1196,7 @@
         function closeAlertModal() {
             document.getElementById('alertModal').classList.add('hidden');
         }
-    loadDataFromSupabase();
+    
     </script>
 </body>
 </html>
