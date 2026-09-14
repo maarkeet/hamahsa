@@ -126,13 +126,17 @@ returns table (id uuid, order_code text, subtotal numeric, delivery_fee numeric,
 language plpgsql security definer set search_path = public
 as $$
 declare
-  new_order public.orders;
-  item jsonb;
-  current_product public.products;
-  item_quantity integer;
-  item_total numeric;
-  calculated_subtotal numeric := 0;
-  calculated_delivery numeric := coalesce((select delivery_fee from public.store_settings where id = 1), 0);
+  v_order public.orders;
+  v_item jsonb;
+  v_product public.products;
+  v_quantity integer;
+  v_item_total numeric;
+  v_subtotal numeric := 0;
+  v_delivery_fee numeric := coalesce((
+    select store_config.delivery_fee
+    from public.store_settings as store_config
+    where store_config.id = 1
+  ), 0);
 begin
   if nullif(trim(p_customer_name), '') is null or nullif(trim(p_phone), '') is null or nullif(trim(p_address), '') is null then
     raise exception 'بيانات العميل غير مكتملة';
@@ -141,29 +145,35 @@ begin
     raise exception 'السلة فارغة';
   end if;
 
-  for item in select * from jsonb_array_elements(p_items) loop
-    select * into current_product from public.products
-    where id = (item->>'product_id')::uuid and available = true;
+  for v_item in select item_value from jsonb_array_elements(p_items) as elements(item_value) loop
+    select product_row.* into v_product
+    from public.products as product_row
+    where product_row.id = (v_item->>'product_id')::uuid
+      and product_row.available = true;
     if not found then raise exception 'المنتج غير متاح'; end if;
-    item_quantity := greatest(1, (item->>'quantity')::integer);
-    item_total := current_product.price * item_quantity;
-    calculated_subtotal := calculated_subtotal + item_total;
+    v_quantity := greatest(1, coalesce((v_item->>'quantity')::integer, 0));
+    v_item_total := v_product.price * v_quantity;
+    v_subtotal := v_subtotal + v_item_total;
   end loop;
 
   insert into public.orders (customer_name, phone, address, subtotal, delivery_fee, total, payment_method, notes)
-  values (trim(p_customer_name), trim(p_phone), trim(p_address), calculated_subtotal, calculated_delivery,
-          calculated_subtotal + calculated_delivery, coalesce(nullif(p_payment_method, ''), 'cash'), nullif(trim(p_notes), ''))
-  returning * into new_order;
+  values (trim(p_customer_name), trim(p_phone), trim(p_address), v_subtotal, v_delivery_fee,
+          v_subtotal + v_delivery_fee, coalesce(nullif(p_payment_method, ''), 'cash'), nullif(trim(p_notes), ''))
+  returning orders.* into v_order;
 
-  for item in select * from jsonb_array_elements(p_items) loop
-    select * into current_product from public.products where id = (item->>'product_id')::uuid and available = true;
-    item_quantity := greatest(1, (item->>'quantity')::integer);
-    item_total := current_product.price * item_quantity;
+  for v_item in select item_value from jsonb_array_elements(p_items) as elements(item_value) loop
+    select product_row.* into v_product
+    from public.products as product_row
+    where product_row.id = (v_item->>'product_id')::uuid
+      and product_row.available = true;
+    if not found then raise exception 'المنتج غير متاح'; end if;
+    v_quantity := greatest(1, coalesce((v_item->>'quantity')::integer, 0));
+    v_item_total := v_product.price * v_quantity;
     insert into public.order_items (order_id, product_id, product_name, quantity, unit_price, total)
-    values (new_order.id, current_product.id, current_product.name, item_quantity, current_product.price, item_total);
+    values (v_order.id, v_product.id, v_product.name, v_quantity, v_product.price, v_item_total);
   end loop;
 
-  return query select new_order.id, new_order.order_code, new_order.subtotal, new_order.delivery_fee, new_order.total;
+  return query select v_order.id, v_order.order_code, v_order.subtotal, v_order.delivery_fee, v_order.total;
 end; $$;
 
 create or replace function public.track_order(p_order_code text, p_phone text)
